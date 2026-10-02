@@ -41,7 +41,8 @@ const environmentSchema = z.object({
     .transform((value) => value === "true"),
 });
 
-const parsed = environmentSchema.parse(process.env);
+// Hosts such as Render say which port to listen on through PORT.
+const parsed = environmentSchema.parse({ ...process.env, API_PORT: process.env.API_PORT ?? process.env.PORT });
 
 if (!parsed.AUTH_SECRET && parsed.NODE_ENV === "production") {
   throw new Error("AUTH_SECRET must be set in production");

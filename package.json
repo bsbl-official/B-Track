@@ -12,6 +12,7 @@
     "dev:web": "npm run dev --workspace @task-tracker/web",
     "build": "npm run build --workspace @task-tracker/api && npm run build --workspace @task-tracker/web",
     "typecheck": "npm run typecheck --workspace @task-tracker/api && npm run typecheck --workspace @task-tracker/web",
+    "start": "npm run db:deploy --workspace @task-tracker/api && npm run start --workspace @task-tracker/api",
     "db:start": "npm run db:start --workspace @task-tracker/api",
     "db:generate": "npm run db:generate --workspace @task-tracker/api",
     "db:migrate": "npm run db:migrate --workspace @task-tracker/api",

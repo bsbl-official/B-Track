@@ -6,7 +6,7 @@ The product owner gives instructions one step at a time after looking at the run
 
 ## Stack and layout
 
-npm workspaces monorepo, TypeScript everywhere, no git repository (yet).
+npm workspaces monorepo, TypeScript everywhere. Git repo on GitHub (`main`), public — see `CLAUDE.local.md`.
 
 ```
 apps/api   Express 4 + Zod + Prisma 6 + PostgreSQL 17   (port 3001)
@@ -30,6 +30,21 @@ npm run db:import-sheet --workspace @task-tracker/api   # one-off import of the 
 ```
 
 Verify a change with `npm run typecheck` from the root, plus `npx vite build` for web. **Don't run `npx tsc -p .` in `apps/web`:** that `tsconfig.json` only holds references (`"files": []`), so it checks nothing and always passes. Use `npx tsc --noEmit -p tsconfig.app.json`. `vite build` doesn't type-check either. For runtime problems, such as a blank page, load the page in headless Edge through the DevTools protocol, with a dev-login session cookie, and read the console exceptions. There are no automated tests. API behaviour has been checked with ad-hoc Node `fetch` scripts: log in via `POST /api/auth/dev/login`, keep the cookie, and clean up the test data afterwards.
+
+## Production (Render + Neon)
+
+- **Hosting plan:** one Render free web service runs the API, which also serves `apps/web/dist` when `NODE_ENV=production` (same origin, so the session cookie stays first-party). The database is Neon free Postgres; Render's free Postgres is deleted after 30 days, so don't use it.
+- **Render commands:** build `npm ci --include=dev && npm run build` (the API build runs `prisma generate`), start `npm start` (runs `prisma migrate deploy`, then `node apps/api/dist/index.js`). Health check: `/api/health`.
+- **Ports:** the API listens on `API_PORT`, else `PORT` (set by Render). Locally `.env` sets `API_PORT=3001`, so to test a production build here pass `API_PORT=<other port>`.
+- **Settings on Render:**
+  - `NODE_ENV=production`, `DEV_LOGIN=false` and a 64-character `AUTH_SECRET`
+  - `DATABASE_URL`: Neon's **direct** (non-pooled) connection string
+  - `WEB_ORIGIN`: the site URL
+  - `GOOGLE_CLIENT_ID`, `ALLOWED_EMAIL_DOMAINS` and `ADMIN_EMAILS`
+
+  The site URL must also be an authorised JavaScript origin on the Google OAuth client.
+- **Moving data:** `npm run db:copy --workspace @task-tracker/api` copies every table except sessions from `DATABASE_URL` into `TARGET_DATABASE_URL`. That target must already be migrated and empty, or the script refuses. The script was tested end to end on a scratch database.
+- **Scratch databases on the local server:** Prisma creates them in WIN1252, which can't hold Bangla. Create them with `ENCODING 'UTF8' TEMPLATE template0`.
 
 ## Environment gotchas (Windows)
 
