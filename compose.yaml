@@ -1,0 +1,20 @@
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: task_tracker
+      POSTGRES_PASSWORD: task_tracker
+      POSTGRES_DB: task_tracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - task-tracker-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U task_tracker -d task_tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  task-tracker-postgres:

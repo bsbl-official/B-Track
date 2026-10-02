@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+apps/api/src/generated/
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+node_modules.pre-override/
+
+# Internal sheet data used by db:import-sheet; never publish it.
+apps/api/prisma/*.local.json
+
+# Personal Claude Code settings
+.claude/settings.local.json
+
+# Private local context for Claude Code (real staff and PO names)
+CLAUDE.local.md

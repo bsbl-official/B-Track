@@ -1,0 +1,236 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Roles are data: what a role may do is its list of permission keys, never its name.
+model Role {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  description  String?
+  permissions  String[]
+  // Users with this role appear in "assign to" lists.
+  isAssignable Boolean  @default(false)
+  // Users with this role appear in "tested by" lists.
+  canTest      Boolean  @default(false)
+  // Role given to people signing in for the first time.
+  isDefault    Boolean  @default(false)
+  users        User[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Sign-ups start PENDING until an admin approves them (APPROVED) or declines (REJECTED).
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id                 String     @id @default(cuid())
+  // Display name, kept as "First Last".
+  name               String
+  firstName          String?
+  lastName           String?
+  email              String     @unique
+  // scrypt hash; null until the person sets a password.
+  passwordHash       String?
+  // Set when an admin resets the password; the person must choose a new one after signing in.
+  mustChangePassword Boolean    @default(false)
+  googleId          String?    @unique
+  avatarUrl          String?
+  status             UserStatus @default(APPROVED)
+  // Deactivated users can't sign in. Separate from status so history is kept.
+  isActive           Boolean    @default(true)
+  roleId             String
+  role               Role       @relation(fields: [roleId], references: [id])
+  // Per-person adjustments on top of the role's permissions.
+  grantedPermissions String[] @default([])
+  revokedPermissions String[] @default([])
+  lastLoginAt        DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  reportedTasks Task[]         @relation("TaskReporter")
+  assignedTasks Task[]         @relation("TaskAssignee")
+  testedTasks   Task[]         @relation("TaskTester")
+  comments      Comment[]
+  attachments   Attachment[]   @relation("AttachmentUploader")
+  history       TaskHistory[]
+  sessions      Session[]
+  notifications Notification[] @relation("NotificationRecipient")
+  sentNotices   Notification[] @relation("NotificationActor")
+}
+
+// Login sessions. The browser holds the raw token in a cookie; only its SHA-256 is stored.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actor     User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  taskId    String?
+  task      Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  // In-app page to open when there's no task, e.g. "access?tab=requests".
+  link      String?
+  message   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// A Partner Organisation, shown as "PO" in the web app.
+model Client {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  // Chip colour in the task sheet.
+  color     String   @default("#7c3aed")
+  isActive  Boolean  @default(true)
+  tasks     Task[]
+  createdAt DateTime @default(now())
+}
+
+// Feature / Bug, configurable.
+model TaskType {
+  id        String @id @default(cuid())
+  name      String @unique
+  color     String
+  sortOrder Int    @default(0)
+  tasks     Task[]
+}
+
+model Priority {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String
+  // Lower rank = more urgent.
+  rank  Int    @default(0)
+  tasks Task[]
+}
+
+model Status {
+  id        String  @id @default(cuid())
+  name      String  @unique
+  color     String
+  sortOrder Int     @default(0)
+  // Moving a task into a closed status stamps its delivered date.
+  isClosed  Boolean @default(false)
+  // Status given to newly created tasks.
+  isInitial Boolean @default(false)
+  tasks     Task[]
+
+  transitionsFrom StatusTransition[] @relation("TransitionFrom")
+  transitionsTo   StatusTransition[] @relation("TransitionTo")
+}
+
+// Which status a task may move to from another. A move not listed here is rejected.
+model StatusTransition {
+  id           String @id @default(cuid())
+  fromStatusId String
+  toStatusId   String
+  fromStatus   Status @relation("TransitionFrom", fields: [fromStatusId], references: [id], onDelete: Cascade)
+  toStatus     Status @relation("TransitionTo", fields: [toStatusId], references: [id], onDelete: Cascade)
+
+  @@unique([fromStatusId, toStatusId])
+}
+
+model Task {
+  id                   String    @id @default(cuid())
+  number               Int       @unique @default(autoincrement())
+  title                String
+  description          String?
+  // A task can concern several POs (e.g. the same fix for two POs).
+  clients              Client[]
+  // Type and priority may be left blank, as in the team sheet.
+  typeId               String?
+  type                 TaskType? @relation(fields: [typeId], references: [id])
+  priorityId           String?
+  priority             Priority? @relation(fields: [priorityId], references: [id])
+  statusId             String
+  status               Status    @relation(fields: [statusId], references: [id])
+  reporterId           String
+  reporter             User      @relation("TaskReporter", fields: [reporterId], references: [id])
+  assigneeId           String?
+  assignee             User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  testedById           String?
+  testedBy             User?     @relation("TaskTester", fields: [testedById], references: [id], onDelete: SetNull)
+  // Shown as "Date": the day the task was assigned.
+  reportedDate         DateTime  @db.Date
+  // Shown as "Probable date": the developer's estimate.
+  expectedDeliveryDate DateTime? @db.Date
+  // Shown as "Completed": stamped when the task reaches a closed status.
+  deliveredDate        DateTime? @db.Date
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  comments      Comment[]
+  history       TaskHistory[]
+  notifications Notification[]
+  attachments   Attachment[]
+
+  @@index([reporterId])
+  @@index([statusId])
+  @@index([assigneeId])
+  @@index([testedById])
+}
+
+// Evidence files (screenshots, logs, PDFs) kept in the database so they're backed up with the
+// tasks and removed with them.
+model Attachment {
+  id         String   @id @default(cuid())
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploaderId String
+  uploader   User     @relation("AttachmentUploader", fields: [uploaderId], references: [id])
+  fileName   String
+  mimeType   String
+  size       Int
+  data       Bytes
+  createdAt  DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+// One row per changed field, with display values captured at the time of the change.
+model TaskHistory {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorId   String
+  actor     User     @relation(fields: [actorId], references: [id])
+  field     String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
