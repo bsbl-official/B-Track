@@ -10,7 +10,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       <div className="auth-shell">
         <header className="auth-header">
           <Brand size={72} stacked />
-          <p className="auth-tagline">Issue tracking for every partner organisation</p>
+          <p className="auth-tagline">Made for Benchmark: small fixes, big progress</p>
         </header>
         <section className="login-card">{children}</section>
         <footer className="auth-footer">B-Track · Internal workspace</footer>
