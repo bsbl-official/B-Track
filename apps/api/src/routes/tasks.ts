@@ -250,7 +250,7 @@ tasksRouter.patch(
     const access = taskAccess(actor, task);
 
     if (!access.edit && EDIT_FIELDS.some((field) => input[field] !== undefined)) {
-      throw new HttpError(403, "You can only change your own tasks (ones you created or are assigned to)");
+      throw new HttpError(403, "You can only change tasks assigned to you (or unassigned ones you created)");
     }
     if (input.priorityId !== undefined && input.priorityId !== task.priorityId && !access.setPriority) {
       throw new HttpError(403, access.edit ? "Your role can't change priority" : "You can only change the priority of your own tasks");
@@ -369,7 +369,7 @@ tasksRouter.delete(
   asyncHandler(async (request, response) => {
     const actor = getActor(request);
     const task = await findVisibleTask(actor, request.params.id);
-    if (!taskAccess(actor, task).delete) throw new HttpError(403, "Only the task's creator or someone who can edit all tasks can delete it");
+    if (!taskAccess(actor, task).delete) throw new HttpError(403, "Only the task's creator (while it isn't assigned to someone else) or someone who can edit all tasks can delete it");
     await prisma.task.delete({ where: { id: task.id } });
     response.status(204).end();
   }),

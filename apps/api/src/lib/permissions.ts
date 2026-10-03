@@ -16,7 +16,7 @@ export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 // Shown on the Access management page.
 export const PERMISSION_CATALOGUE: Array<{ key: Permission; group: string; label: string; description: string }> = [
-  { key: PERMISSIONS.taskCreate, group: "Tasks", label: "Create tasks", description: "Add new tasks. People can always edit their own tasks (created by or assigned to them) and delete the ones they created." },
+  { key: PERMISSIONS.taskCreate, group: "Tasks", label: "Create tasks", description: "Add new tasks. People can always edit tasks assigned to them, and unassigned tasks they created (which they can also delete)." },
   { key: PERMISSIONS.taskViewAll, group: "Tasks", label: "See all tasks", description: "Without this, a user sees only tasks they created or are assigned to." },
   { key: PERMISSIONS.taskEditAll, group: "Tasks", label: "Edit & delete any task", description: "Change or delete any task, not just their own." },
   { key: PERMISSIONS.taskAssignAny, group: "Tasks", label: "Assign to anyone", description: "Move tasks from one person to another. Without this, people can only assign their own or unassigned tasks to themselves, or unassign them." },
