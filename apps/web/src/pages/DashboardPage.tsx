@@ -8,6 +8,23 @@ function greeting() {
   return hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
+// Line icons for the metric cards, drawn like the sidebar's NavIcon.
+const statIcons: Record<string, string[]> = {
+  assigned: ["M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z", "M3 20c0-3.3 2.9-6 6.5-6 1.3 0 2.5.3 3.5.9", "m15 18 2 2 4-4"],
+  open: ["M12 3 3 7.5l9 4.5 9-4.5z", "m3 12 9 4.5 9-4.5", "m3 16.5 9 4.5 9-4.5"],
+  overdue: ["M12 3.5 2.5 20h19z", "M12 10v4.5", "M12 17.5h.01"],
+  soon: ["M4.5 5.5h15v15h-15z", "M4.5 10h15", "M8.5 3v4", "M15.5 3v4", "M12 13v3l2 1.5"],
+  done: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "m8 12.5 2.8 2.8L16.5 9.5"],
+};
+
+function StatIcon({ name }: { name: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {(statIcons[name] ?? []).map((d) => <path key={d} d={d} />)}
+    </svg>
+  );
+}
+
 function deadlineLabel(gapDays: number | null) {
   if (gapDays === null) return "";
   if (gapDays > 0) return `${gapDays}d late`;
@@ -30,13 +47,13 @@ export function DashboardPage({ profile }: { profile: Profile }) {
   const teamWide = data?.scope === "all";
   const cards = data
     ? [
-        { key: "assigned", caption: "ON YOUR PLATE", label: "Assigned to me", value: data.cards.assignedToMe, icon: "☑", tone: "violet", foot: "Open tasks assigned to you" },
+        { key: "assigned", caption: "ON YOUR PLATE", label: "Assigned to me", value: data.cards.assignedToMe, tone: "mine", foot: "Open tasks assigned to you" },
         ...(teamWide
-          ? [{ key: "open", caption: "ALL WORK", label: "Open tasks", value: data.cards.open, icon: "☷", tone: "blue", foot: `${data.cards.total} tasks in total` }]
+          ? [{ key: "open", caption: "ALL WORK", label: "Open tasks", value: data.cards.open, tone: "blue", foot: `${data.cards.total} tasks in total` }]
           : []),
-        { key: "overdue", caption: "NEEDS ATTENTION", label: "Overdue", value: data.cards.overdue, icon: "!", tone: "red", foot: teamWide ? "Past the probable date" : "Your tasks past the probable date" },
-        { key: "soon", caption: "COMING UP", label: "Due in 3 days", value: data.cards.dueSoon, icon: "◷", tone: "amber", foot: teamWide ? "Including today" : "Your tasks, including today" },
-        { key: "done", caption: "WRAPPED UP", label: "Completed", value: data.cards.deliveredRecently, icon: "✓", tone: "green", foot: teamWide ? "In the last 30 days" : "By you in the last 30 days" },
+        { key: "overdue", caption: "NEEDS ATTENTION", label: "Overdue", value: data.cards.overdue, tone: "red", foot: teamWide ? "Past the probable date" : "Your tasks past the probable date" },
+        { key: "soon", caption: "COMING UP", label: "Due in 3 days", value: data.cards.dueSoon, tone: "amber", foot: teamWide ? "Including today" : "Your tasks, including today" },
+        { key: "done", caption: "WRAPPED UP", label: "Completed", value: data.cards.deliveredRecently, tone: "green", foot: teamWide ? "In the last 30 days" : "By you in the last 30 days" },
       ]
     : [];
 
@@ -60,9 +77,9 @@ export function DashboardPage({ profile }: { profile: Profile }) {
         <>
           <div className="stats-grid" aria-label="Task metrics">
             {cards.map((card) => (
-              <article key={card.key} className={`stat-card ${card.tone}`}>
+              <article key={card.key} className={`stat-card ${card.tone}${card.value === 0 ? " is-zero" : ""}`}>
                 <div className="stat-top">
-                  <span className={`stat-icon ${card.tone}`} aria-hidden="true">{card.icon}</span>
+                  <span className="stat-icon" aria-hidden="true"><StatIcon name={card.key} /></span>
                   <span className="stat-caption">{card.caption}</span>
                 </div>
                 <strong className="stat-value">{card.value}</strong>

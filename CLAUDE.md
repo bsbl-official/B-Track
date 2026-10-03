@@ -154,7 +154,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 
 ## Web map (`apps/web/src`)
 
-- `App.tsx`: loads the session (`/auth/me`, then `/meta`), shows the login page, the forced password change, or the shell. The shell is a **collapsible graphite sidebar** (remembered in `localStorage` key `btrack.sidebar`), a top bar with `NotificationBell` and a user menu, and the pages.
+- `App.tsx`: loads the session (`/auth/me`, then `/meta`), shows the login page, the forced password change, or the shell. The shell is a **graphite sidebar that rests as a 72px icon rail and opens over the page on hover or keyboard focus** (short open/close delays; the page never shifts). A small pin button (top right of the open menu) keeps it open beside the page instead; pinned or not is remembered in `localStorage` key `btrack.sidebar`, a top bar with `NotificationBell` and a user menu, and the pages.
 - **Pages:**
   - `DashboardPage`
   - `TaskSheet` (component)
@@ -162,10 +162,10 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - `AccessPage`: tabs Requests / Users / Roles & permissions (needs `access.manage`)
   - `ProfilePage`
   - `LoginPage` and `ChoosePasswordPage`, both inside `AuthLayout`
-- **`TaskSheet.tsx`:** the spreadsheet grid. Columns follow the original sheet order: Date · PO · Issue No · Issue title · Assigned dev · Priority · Tested by · Probable date · Gap days · Status · Comments.
-  - Cells are edited inline and save on change.
-  - The title is an auto-growing textarea (the CSS `grow-wrap` trick): Enter saves, Escape cancels.
-  - Bug/Feature shows as a `TypeIcon` before the title (click to change); there is no Type column.
+- **`TaskSheet.tsx`:** the spreadsheet grid. Columns follow the original sheet order: Date · PO · Issue No · Issue title · Assigned dev · Priority · Tested by · Probable date · Gap days · Status. There is no Comments column (removed to save space); comments live in the `TaskDrawer`.
+  - Clicking a row (anywhere outside its dropdowns and date pickers) opens the `TaskDrawer`; Enter does the same on a focused row. There is no delete button or open arrow on rows.
+  - **Read-only in the sheet:** Date, PO, Issue title and type. They are edited in the drawer (Edit). Assigned dev, Priority, Tested by, Probable date and Status are still edited inline and save on change.
+  - Bug/Feature shows as a `TypeIcon` before the title; there is no Type column.
   - There is no Completed column; the completed date appears in the `TaskDrawer`.
   - View tabs: All / Open / Overdue / Due in 3 days / Completed.
   - **Filters** (`TaskFilters.tsx`): the row just above the table has filter chips on the left and a search box plus Filters button on the right (not in the top bar). One panel holds every filter: PO, type, priority, status, assigned dev, tested by, and date ranges for Date, Probable date and Completed.
@@ -173,10 +173,10 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - Rows use the chosen sort only. There is no unassigned-first ordering; the owner rejected it.
   - **Resizable columns that always fit:** the table is sized to exactly the sheet area's width (measured with a ResizeObserver), so there's never a sideways scrollbar. Column widths are shares of that width. Dragging a header's right edge moves width between that column and the next (min 56px). Double-click resets all columns, and arrow keys nudge. Saved in `localStorage` key `btrack.sheet.columns`.
   - A "New task" button opens `NewTaskModal` (sectioned form). It has an **Evidence** section (`components/Evidence.tsx`): Ctrl+V anywhere in the form attaches a pasted screenshot, or drop or browse for files. The files upload right after the task is created. A failed file doesn't undo the task; it shows an error naming it.
-  - Titles with evidence show a paperclip count, which opens the drawer. The drawer's Evidence gallery shows thumbnails and files, with add (paste, drop, browse) and remove.
+  - Titles with evidence show a paperclip count. The drawer's Evidence gallery shows thumbnails and files, with add (paste, drop, browse) and remove.
 - **Other components:**
   - `PoPicker`: multi-select PO list, rendered on `document.body` through a portal so form and table CSS can't leak into it. It commits when closed.
-  - `TaskDrawer`: details, comments, history.
+  - `TaskDrawer`: details, comments, history, plus Edit (title, PO, type, Date, Probable date; needs `access.edit`) and Delete (needs `access.delete`, with a confirm).
   - `Logo.tsx`: `Logo` and `Brand` (logo plus "B-Track" wordmark).
   - `NavIcon`: sidebar line icons.
 - `api.ts` holds the typed fetch wrappers (a 401 fires `SESSION_EXPIRED_EVENT`), `types.ts` the shared types, and `format.ts` the date and permission helpers.
@@ -198,7 +198,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 
 The real team members and POs are internal, so they're named only in the git-ignored `CLAUDE.local.md`, never in committed files.
 
-- **Tasks:** 79 tasks were imported from the sheet (issues #3–#287). Ambiguous source values were left blank and noted in the task description. New tasks continue from #288.
+- **Tasks:** 79 tasks were once imported from the sheet (issues #3–#287), but on 2026-10-03 the owner had **all tasks deleted locally** to test with fresh data (users, POs and configuration kept; issue numbers restarted at #1). Note `db:seed` adds sample tasks whenever the task table is empty, and `db:import-sheet` would bring the sheet rows back; run neither unless asked.
 - **Sheet data:** `db:import-sheet` reads the sheet's people, PO colours and rows from `apps/api/prisma/sheet-data.local.json`, which is git-ignored. Keep real data out of committed code.
 - **Users:**
   - Two developers and two testers came from the sheet; the testers have the Business Analyst role.

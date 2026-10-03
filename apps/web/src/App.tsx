@@ -24,18 +24,23 @@ const navItems: NavItem[] = [
   { page: "access", label: "Access management", icon: "access", permission: PERMISSIONS.accessManage },
 ];
 
-// Remembered per browser; storage can be unavailable (private windows), so it's best effort.
+// The sidebar rests as an icon rail and opens over the page while the pointer (or keyboard focus)
+// is on it. Short delays stop it flickering when the mouse just passes by.
+const SIDEBAR_OPEN_DELAY = 120;
+const SIDEBAR_CLOSE_DELAY = 250;
+
+// Pinned keeps the menu open beside the page. Remembered per browser (best effort).
 const SIDEBAR_KEY = "btrack.sidebar";
-function readCollapsed(): boolean {
+function readPinned(): boolean {
   try {
-    return localStorage.getItem(SIDEBAR_KEY) === "collapsed";
+    return localStorage.getItem(SIDEBAR_KEY) === "pinned";
   } catch {
     return false;
   }
 }
-function saveCollapsed(collapsed: boolean) {
+function savePinned(pinned: boolean) {
   try {
-    localStorage.setItem(SIDEBAR_KEY, collapsed ? "collapsed" : "open");
+    localStorage.setItem(SIDEBAR_KEY, pinned ? "pinned" : "hover");
   } catch {
     // Not remembered; fine.
   }
@@ -45,14 +50,28 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [navOpen, setNavOpen] = useState(false);
+  const navTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const route = useRoute();
 
-  const toggleSidebar = () =>
-    setCollapsed((current) => {
-      saveCollapsed(!current);
+  const setNavOpenLater = (open: boolean) => {
+    if (navTimer.current) clearTimeout(navTimer.current);
+    navTimer.current = setTimeout(() => setNavOpen(open), open ? SIDEBAR_OPEN_DELAY : SIDEBAR_CLOSE_DELAY);
+  };
+  useEffect(() => () => {
+    if (navTimer.current) clearTimeout(navTimer.current);
+  }, []);
+  const [pinned, setPinned] = useState(readPinned);
+  const togglePinned = () => {
+    if (navTimer.current) clearTimeout(navTimer.current);
+    // Unpinning leaves it open (the pointer is on it); it folds away when the pointer leaves.
+    setNavOpen(true);
+    setPinned((current) => {
+      savePinned(!current);
       return !current;
     });
+  };
+  const collapsed = !pinned && !navOpen;
 
   const loadSession = useCallback(async () => {
     try {
@@ -110,20 +129,29 @@ export default function App() {
   const pageTitle = page === "profile" ? "My profile" : navItems.find((item) => item.page === page)?.label;
 
   return (
-    <main className={`workspace ${collapsed ? "nav-collapsed" : ""}`}>
-      <aside className="sidebar" aria-label="Main navigation">
-        <a className="brand" href="#/dashboard" aria-label="B-Track home" title={collapsed ? "B-Track" : undefined}>
+    <main className={`workspace ${pinned ? "nav-pinned" : collapsed ? "nav-collapsed" : "nav-peek"}`}>
+      <aside
+        className="sidebar"
+        aria-label="Main navigation"
+        onMouseEnter={() => setNavOpenLater(true)}
+        onMouseLeave={() => setNavOpenLater(false)}
+        onFocus={() => setNavOpenLater(true)}
+        onBlur={(event) => !event.currentTarget.contains(event.relatedTarget as Node | null) && setNavOpenLater(false)}
+        // A click on a link opens a page; unless pinned, fold the menu away straight after.
+        onClick={(event) => !pinned && (event.target as HTMLElement).closest("a") && setNavOpenLater(false)}
+      >
+        <a className="brand" href="#/dashboard" aria-label="B-Track home">
           <Brand size={34} />
         </a>
         <button
           type="button"
-          className="sidebar-toggle"
-          onClick={toggleSidebar}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? "Expand menu" : "Collapse menu"}
-          title={collapsed ? "Expand menu" : "Collapse menu"}
+          className={`sidebar-pin ${pinned ? "on" : ""}`}
+          onClick={togglePinned}
+          aria-pressed={pinned}
+          aria-label={pinned ? "Unpin menu" : "Pin menu open"}
+          title={pinned ? "Unpin: open the menu on hover" : "Pin: keep the menu open"}
         >
-          <NavIcon name="collapse" />
+          <NavIcon name="pin" />
         </button>
 
         <p className="nav-label">WORKSPACE</p>

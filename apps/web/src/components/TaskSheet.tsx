@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { api } from "../api";
-import { errorMessage, formatDate, hasPermission, timeAgo } from "../format";
+import { errorMessage, formatDate, hasPermission } from "../format";
 import { navigate } from "../router";
 import { PERMISSIONS, type Meta, type Named, type NewTask, type Profile, type Task, type TaskUpdate } from "../types";
 import { NewTaskModal } from "./NewTaskModal";
-import { PoPicker } from "./PoPicker";
+import { PoChips } from "./PoPicker";
 import { FilterBar, activeFilterChips, defaultFilters, emptyFilters, matchesFilters, type Filters } from "./TaskFilters";
 import { TaskDrawer } from "./TaskDrawer";
 import { TypeIcon } from "./TypeIcon";
@@ -40,9 +40,7 @@ const columns: Column[] = [
   { id: "due", key: "expectedDeliveryDate", label: "Probable date", width: 150 },
   { id: "gap", key: "gapDays", label: "Gap days", className: "col-gap", width: 90 },
   { id: "status", key: "status", label: "Status", width: 140 },
-  { id: "comments", key: null, label: "Comments", className: "col-comments", width: 240 },
 ];
-const ACTIONS_WIDTH = 44;
 const MIN_COLUMN_WIDTH = 56;
 type Shares = Record<string, number>;
 
@@ -167,14 +165,10 @@ export function TaskSheet({
     return created;
   };
 
-  const deleteTask = async (task: Task) => {
-    if (!window.confirm(`Delete task #${task.number} "${task.title}"? This can't be undone.`)) return;
-    try {
-      await api.deleteTask(task.id);
-      setTasks((current) => current?.filter((item) => item.id !== task.id) ?? null);
-    } catch (error) {
-      showError(error);
-    }
+  // Deleting happens in the details drawer; drop the row and close it.
+  const removeTask = (id: string) => {
+    setTasks((current) => current?.filter((item) => item.id !== id) ?? null);
+    openTask(null);
   };
 
   const createClient = async (): Promise<string | null> => {
@@ -215,7 +209,7 @@ export function TaskSheet({
     setSort((current) => ({ key, direction: current.key === key ? (current.direction === 1 ? -1 : 1) : 1 }));
 
   // Space for the resizable columns; below the columns' minimums the sheet has to scroll.
-  const columnSpace = Math.max(available - ACTIONS_WIDTH, columns.length * MIN_COLUMN_WIDTH);
+  const columnSpace = Math.max(available, columns.length * MIN_COLUMN_WIDTH);
   const widthOf = (id: string) => Math.floor(shares[id] * columnSpace);
 
   const startResize = (index: number, event: ReactPointerEvent) => {
@@ -255,7 +249,7 @@ export function TaskSheet({
         <div>
           <h1>Task sheet</h1>
           <p className="subtitle">
-            {hasPermission(permissions, PERMISSIONS.taskViewAll) ? "Every task across all Partner Organisations (POs)." : "Tasks you created or are assigned to."} Edit a cell and it saves straight away.
+            {hasPermission(permissions, PERMISSIONS.taskViewAll) ? "Every task across all Partner Organisations (POs)." : "Tasks you created or are assigned to."} Click a row to see details, edit or delete it.
           </p>
         </div>
         {canCreate && (
@@ -299,10 +293,9 @@ export function TaskSheet({
       </div>
 
       <div className="sheet-scroll" ref={scroller}>
-        <table className="sheet resizable" style={{ width: columnSpace + ACTIONS_WIDTH }}>
+        <table className="sheet resizable" style={{ width: columnSpace }}>
           <colgroup>
             {columns.map((column) => <col key={column.id} style={{ width: widthOf(column.id) }} />)}
-            <col style={{ width: ACTIONS_WIDTH }} />
           </colgroup>
           <thead>
             <tr>
@@ -339,16 +332,15 @@ export function TaskSheet({
                   )}
                 </th>
               ))}
-              <th className="col-actions"><span className="visually-hidden">Actions</span></th>
             </tr>
           </thead>
           <tbody>
             {tasks === null && (
-              <tr><td className="sheet-message" colSpan={columns.length + 1}>Loading tasks…</td></tr>
+              <tr><td className="sheet-message" colSpan={columns.length}>Loading tasks…</td></tr>
             )}
             {tasks !== null && visibleTasks.length === 0 && (
               <tr>
-                <td className="sheet-message" colSpan={columns.length + 1}>
+                <td className="sheet-message" colSpan={columns.length}>
                   No tasks match this view.{" "}
                   {canCreate && <button type="button" className="text-button" onClick={() => setCreating(true)}>Create a task</button>}
                 </td>
@@ -362,7 +354,6 @@ export function TaskSheet({
                 profile={profile}
                 onUpdate={updateTask}
                 onOpen={() => openTask(task.id)}
-                onDelete={() => deleteTask(task)}
               />
             ))}
           </tbody>
@@ -383,9 +374,11 @@ export function TaskSheet({
       {openTaskId && (
         <TaskDrawer
           taskId={openTaskId}
+          meta={meta}
           currentUserId={profile.id}
           onClose={() => openTask(null)}
           onTaskChanged={replaceTask}
+          onDeleted={removeTask}
           onError={(error) => {
             showError(error);
             openTask(null);
@@ -506,73 +499,24 @@ function DateCell({
   );
 }
 
-function TitleCell({
-  value,
-  onSave,
-  onOpen,
-  disabled,
-  type,
-  evidenceCount,
-}: {
-  value: string;
-  onSave: (value: string) => void;
-  onOpen: () => void;
-  disabled: boolean;
-  type: ReactNode;
-  evidenceCount: number;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  const commit = () => {
-    // Pasted line breaks become spaces; titles stay one paragraph.
-    const trimmed = draft.replace(/\s+/g, " ").trim();
-    if (!trimmed) setDraft(value);
-    else if (trimmed !== value) onSave(trimmed);
-  };
-
+// Read-only in the sheet: the title, type, date and PO are edited from the details drawer.
+function TitleCell({ value, type, evidenceCount }: { value: string; type: ReactNode; evidenceCount: number }) {
   return (
     <div className="title-cell">
       {type}
-      {disabled ? (
-        <span className="cell-text title-text">{value}</span>
-      ) : (
-        // A textarea so long titles wrap. The wrapper holds an invisible copy of the text in the
-        // same grid cell, so the box is always exactly as tall as the wrapped title.
-        <div className="grow-wrap" data-value={`${draft} `}>
-        <textarea
-          className="cell-input title-input"
-          rows={1}
-          value={draft}
-          aria-label="Issue title"
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              event.currentTarget.blur();
-            }
-            if (event.key === "Escape") {
-              setDraft(value);
-              const target = event.currentTarget;
-              requestAnimationFrame(() => target.blur());
-            }
-          }}
-        />
-        </div>
-      )}
+      <span className="cell-text title-text">{value}</span>
       {evidenceCount > 0 && (
-        <button type="button" className="evidence-count" onClick={onOpen} title={`${evidenceCount} evidence file${evidenceCount === 1 ? "" : "s"}`} aria-label={`Open ${evidenceCount} evidence file${evidenceCount === 1 ? "" : "s"}`}>
+        <span className="evidence-count" title={`${evidenceCount} evidence file${evidenceCount === 1 ? "" : "s"}`}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.1-8.1a3.3 3.3 0 0 1 4.7 4.7l-8.1 8.1a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4" /></svg>
           {evidenceCount}
-        </button>
+        </span>
       )}
-      <button type="button" className="open-button" onClick={onOpen} aria-label="Open details, comments and history" title="Details, comments & history">
-        ↗
-      </button>
     </div>
   );
 }
+
+// Clicking a row opens its details, except when the click lands on one of the row's own controls.
+const ROW_CONTROLS = "select, input, textarea, button, a, label";
 
 function TaskRow({
   task,
@@ -580,14 +524,12 @@ function TaskRow({
   profile,
   onUpdate,
   onOpen,
-  onDelete,
 }: {
   task: Task;
   meta: Meta;
   profile: Profile;
   onUpdate: (id: string, update: TaskUpdate) => void;
   onOpen: () => void;
-  onDelete: () => void;
 }) {
   const { access } = task;
   const editable = access.edit;
@@ -596,31 +538,33 @@ function TaskRow({
   const statusOptions = meta.statuses.filter(
     (status) => status.id === task.statusId || currentStatus?.nextStatusIds.includes(status.id),
   );
-  // POs archived after the task was logged still show by name.
-  const poOptions = [...meta.clients, ...task.clients.filter((client) => !meta.clients.some((po) => po.id === client.id))];
   // Developers and Business Analysts (roles with "Can test tasks").
   const testers: Named[] = meta.users.filter((user) => user.canTest);
   const testerOptions = task.testedBy && !testers.some((user) => user.id === task.testedById) ? [...testers, task.testedBy] : testers;
   const update = (change: TaskUpdate) => onUpdate(task.id, change);
 
   return (
-    <tr className={`${isOverdue(task) ? "overdue" : ""} ${task.status.isClosed ? "closed" : ""}`}>
+    <tr
+      className={`clickable ${isOverdue(task) ? "overdue" : ""} ${task.status.isClosed ? "closed" : ""}`}
+      tabIndex={0}
+      aria-label={`Task #${task.number}: ${task.title}. Press Enter for details.`}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest(ROW_CONTROLS)) return;
+        // Leave selecting text alone.
+        if (window.getSelection()?.toString()) return;
+        onOpen();
+      }}
+      onKeyDown={(event) => event.key === "Enter" && event.target === event.currentTarget && onOpen()}
+    >
       <td>
-        <DateCell label="Date assigned" value={task.reportedDate} required disabled={!editable} onChange={(reportedDate) => reportedDate && update({ reportedDate })} />
+        <span className="cell-text">{formatDate(task.reportedDate)}</span>
       </td>
       <td className="col-po">
-        <PoPicker options={poOptions} value={task.clients.map((client) => client.id)} disabled={!editable} onChange={(clientIds) => update({ clientIds })} />
+        <PoChips pos={task.clients} />
       </td>
       <td className="col-number">{task.number}</td>
       <td className="col-title">
-        <TitleCell
-          value={task.title}
-          disabled={!editable}
-          onSave={(title) => update({ title })}
-          onOpen={onOpen}
-          type={<TypeIcon type={task.type} types={meta.types} disabled={!editable} onChange={(typeId) => update({ typeId })} />}
-          evidenceCount={task.attachmentCount}
-        />
+        <TitleCell value={task.title} type={<TypeIcon type={task.type} types={meta.types} disabled />} evidenceCount={task.attachmentCount} />
       </td>
       <td>
         <CellSelect
@@ -644,28 +588,6 @@ function TaskRow({
       <td className="col-gap"><GapCell task={task} /></td>
       <td>
         <CellSelect label="Status" value={task.statusId} color={task.status.color} options={statusOptions} disabled={!access.setStatus} onChange={(statusId) => update({ statusId })} />
-      </td>
-      <td className="col-comments">
-        <button type="button" className="comment-cell" onClick={onOpen} title={task.latestComment ? `${task.latestComment.author}: ${task.latestComment.body}` : "Add a comment"}>
-          {task.latestComment ? (
-            <>
-              <span className="comment-snippet">{task.latestComment.body}</span>
-              <span className="comment-meta-line">
-                {task.latestComment.author} · {timeAgo(task.latestComment.createdAt)}
-                {task.commentCount > 1 && ` · +${task.commentCount - 1}`}
-              </span>
-            </>
-          ) : (
-            <span className="comment-empty">＋ Comment</span>
-          )}
-        </button>
-      </td>
-      <td className="col-actions">
-        {access.delete && (
-          <button type="button" className="row-action danger" onClick={onDelete} aria-label={`Delete task #${task.number}`} title="Delete">
-            🗑
-          </button>
-        )}
       </td>
     </tr>
   );
