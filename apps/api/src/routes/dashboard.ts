@@ -9,7 +9,6 @@ import { can, getActor } from "../middleware/auth.js";
 
 export const dashboardRouter = Router();
 
-const DUE_SOON_DAYS = 3;
 const DELIVERED_WINDOW_DAYS = 30;
 
 // Team-wide metrics need "dashboard.view_all"; everyone else gets numbers for the tasks assigned to them.
@@ -59,7 +58,7 @@ dashboardRouter.get(
           assignedToMe: open.filter((task) => task.assigneeId === actor.id).length,
           open: open.length,
           overdue: open.filter((task) => task.gapDays !== null && task.gapDays > 0).length,
-          dueSoon: open.filter((task) => task.gapDays !== null && task.gapDays <= 0 && task.gapDays >= -DUE_SOON_DAYS).length,
+          dueToday: open.filter((task) => task.gapDays === 0).length,
           deliveredRecently: withGap.filter((task) => task.deliveredDate && task.deliveredDate >= deliveredSince).length,
           total: tasks.length,
         },

@@ -149,7 +149,7 @@ export type NewTask = {
 
 export type Dashboard = {
   scope: "all" | "mine";
-  cards: { assignedToMe: number; open: number; overdue: number; dueSoon: number; deliveredRecently: number; total: number };
+  cards: { assignedToMe: number; open: number; overdue: number; dueToday: number; deliveredRecently: number; total: number };
   byStatus: Array<Colored & { count: number }>;
   deadlines: Array<{
     id: string;

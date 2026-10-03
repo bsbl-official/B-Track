@@ -9,7 +9,7 @@ import { FilterBar, activeFilterChips, defaultFilters, emptyFilters, matchesFilt
 import { TaskDrawer } from "./TaskDrawer";
 import { TypeIcon } from "./TypeIcon";
 
-type View = "all" | "open" | "unassigned" | "overdue" | "dueSoon" | "completed";
+type View = "all" | "open" | "unassigned" | "overdue" | "dueToday" | "completed";
 type SortKey =
   | "reportedDate" | "client" | "number" | "title" | "assignee" | "priority"
   | "testedBy" | "expectedDeliveryDate" | "gapDays" | "status";
@@ -17,7 +17,8 @@ type SortKey =
 const DUE_SOON_DAYS = 3;
 
 const isOverdue = (task: Task) => task.gapDays !== null && task.gapDays > 0;
-const isDueSoon = (task: Task) => task.gapDays !== null && task.gapDays <= 0 && task.gapDays >= -DUE_SOON_DAYS;
+// Gap days are computed by the server, so "today" is the server's date.
+const isDueToday = (task: Task) => task.gapDays === 0;
 
 const views: Array<{ key: View; label: string; matches: (task: Task) => boolean }> = [
   { key: "all", label: "All", matches: () => true },
@@ -25,7 +26,7 @@ const views: Array<{ key: View; label: string; matches: (task: Task) => boolean 
   // Open work nobody has taken yet; anyone who can take tasks may claim one.
   { key: "unassigned", label: "Unassigned", matches: (task) => !task.status.isClosed && task.assigneeId === null },
   { key: "overdue", label: "Overdue", matches: isOverdue },
-  { key: "dueSoon", label: `Due in ${DUE_SOON_DAYS} days`, matches: isDueSoon },
+  { key: "dueToday", label: "Due today", matches: isDueToday },
   { key: "completed", label: "Completed", matches: (task) => task.status.isClosed },
 ];
 
@@ -488,19 +489,20 @@ function DateCell({
   onChange,
   disabled,
   required,
-  alert,
+  tone,
 }: {
   value: string | null;
   label: string;
   onChange: (value: string | null) => void;
   disabled?: boolean;
   required?: boolean;
-  alert?: boolean;
+  tone?: "overdue" | "today" | null;
 }) {
-  if (disabled) return <span className={`cell-text ${alert ? "date-alert" : ""}`}>{formatDate(value)}</span>;
+  const toneClass = tone === "overdue" ? "date-alert" : tone === "today" ? "date-today" : "";
+  if (disabled) return <span className={`cell-text ${toneClass}`}>{formatDate(value)}</span>;
   return (
     <input
-      className={`cell-date ${value ? "" : "empty"} ${alert ? "date-alert" : ""}`}
+      className={`cell-date ${value ? "" : "empty"} ${toneClass}`}
       type="date"
       value={value ?? ""}
       aria-label={label}
@@ -602,7 +604,7 @@ function TaskRow({
         )}
       </td>
       <td>
-        <DateCell label="Probable date" value={task.expectedDeliveryDate} alert={isOverdue(task)} disabled={!editable} onChange={(expectedDeliveryDate) => update({ expectedDeliveryDate })} />
+        <DateCell label="Probable date" value={task.expectedDeliveryDate} tone={isOverdue(task) ? "overdue" : isDueToday(task) ? "today" : null} disabled={!editable} onChange={(expectedDeliveryDate) => update({ expectedDeliveryDate })} />
       </td>
       <td className="col-gap"><GapCell task={task} /></td>
       <td>

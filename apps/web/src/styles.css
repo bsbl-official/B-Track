@@ -80,7 +80,7 @@ h1 { color: #1f2329; font: 700 24px var(--font-display); letter-spacing: -.6px; 
 .view-count { background: #eff1f4; border-radius: 10px; color: #5f6673; font-size: 11px; font-weight: 600; min-width: 22px; padding: 1px 7px; text-align: center; }
 .view-tab.active .view-count { background: var(--accent-soft); color: #a8121a; }
 .view-tab.overdue .view-count { background: #fdecea; color: #c0392b; }
-.view-tab.dueSoon .view-count { background: #fff4e5; color: #b7791f; }
+.view-tab.dueToday .view-count { background: #fff4e5; color: #b7791f; }
 .view-tab.unassigned .view-count { background: #eaf3ff; color: #2f5fa8; }
 
 .filter-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
@@ -347,7 +347,8 @@ h1 { color: #1f2329; font: 700 24px var(--font-display); letter-spacing: -.6px; 
 .cell-select.centered { text-align: center; text-align-last: center; }
 .col-gap .gap-badge { margin-left: 0; min-width: 34px; text-align: center; }
 .date-alert { background: #fdecea !important; border-color: #f6c6c1 !important; color: #b42318 !important; font-weight: 600; }
-.cell-text.date-alert { border-radius: 6px; padding: 5px 6px; }
+.date-today { background: #e7f6ec !important; border-color: #b7e2c4 !important; color: #1e7a3c !important; font-weight: 600; }
+.cell-text.date-alert, .cell-text.date-today { border-radius: 6px; padding: 5px 6px; }
 .color-cell { width: 56px; }
 .color-cell input { background: none; border: 1px solid #e1e4e9; border-radius: 6px; cursor: pointer; height: 28px; padding: 2px; width: 36px; }
 .secondary-button { background: #fff; border: 1px solid #f2c4c6; border-radius: 6px; color: #a8121a; cursor: pointer; font-size: 12px; font-weight: 600; padding: 7px 14px; }

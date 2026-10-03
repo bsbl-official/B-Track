@@ -63,7 +63,7 @@ export function DashboardPage({ profile }: { profile: Profile }) {
           ? [{ key: "open", caption: "ALL WORK", label: "Open tasks", value: data.cards.open, tone: "blue", href: sheetLink({ view: "open" }), foot: `${data.cards.total} tasks in total` }]
           : []),
         { key: "overdue", caption: "NEEDS ATTENTION", label: "Overdue", value: data.cards.overdue, tone: "red", href: sheetLink({ view: "overdue", ...mine }), foot: teamWide ? "Past the probable date" : "Your tasks past the probable date" },
-        { key: "soon", caption: "COMING UP", label: "Due in 3 days", value: data.cards.dueSoon, tone: "amber", href: sheetLink({ view: "dueSoon", ...mine }), foot: teamWide ? "Including today" : "Your tasks, including today" },
+        { key: "soon", caption: "TODAY", label: "Due today", value: data.cards.dueToday, tone: "amber", href: sheetLink({ view: "dueToday", ...mine }), foot: teamWide ? "Probable date is today" : "Your tasks, probable date today" },
         { key: "done", caption: "WRAPPED UP", label: "Completed", value: data.cards.deliveredRecently, tone: "green", href: sheetLink({ view: "all", completedFrom: daysAgo(30), ...mine }), foot: teamWide ? "In the last 30 days" : "By you in the last 30 days" },
       ]
     : [];
