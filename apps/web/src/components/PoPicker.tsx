@@ -1,20 +1,24 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { Colored } from "../types";
+import type { Named } from "../types";
 
-export function PoChips({ pos }: { pos: Colored[] }) {
-  if (pos.length === 0) return <span className="po-placeholder">Select PO…</span>;
+// POs carry their own colour; people (testers) use a neutral one.
+type Option = Named & { color?: string };
+const NEUTRAL = "#5f6673";
+
+export function PoChips({ pos, placeholder = "Select PO…" }: { pos: Option[]; placeholder?: string }) {
+  if (pos.length === 0) return <span className="po-placeholder">{placeholder}</span>;
   return (
     <span className="po-chips">
       {pos.map((po) => (
-        <span key={po.id} className="po-chip" style={{ "--pill": po.color } as CSSProperties}>{po.name}</span>
+        <span key={po.id} className="po-chip" style={{ "--pill": po.color ?? NEUTRAL } as CSSProperties}>{po.name}</span>
       ))}
     </span>
   );
 }
 
 /**
- * Pick one or more POs. The choice is reported when the list closes, so editing a sheet
+ * Pick one or more POs (or, with `required={false}`, any number of people, e.g. testers). The choice is reported when the list closes, so editing a sheet
  * cell saves once rather than on every tick.
  */
 export function PoPicker({
@@ -25,14 +29,19 @@ export function PoPicker({
   disabled,
   variant = "cell",
   label = "PO",
+  placeholder,
+  required = true,
 }: {
-  options: Colored[];
+  options: Option[];
   value: string[];
   onChange: (ids: string[]) => void;
   onCreate?: () => Promise<string | null>;
   disabled?: boolean;
   variant?: "cell" | "field";
   label?: string;
+  placeholder?: string;
+  // At least one must stay selected (POs). Testers may be cleared to none.
+  required?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -50,8 +59,8 @@ export function PoPicker({
     setOpen(false);
     const next = draftRef.current;
     const changed = next.length !== value.length || next.some((id) => !value.includes(id));
-    if (changed && next.length > 0) onChange(next);
-    if (next.length === 0) setDraft(value);
+    if (changed && (next.length > 0 || !required)) onChange(next);
+    if (next.length === 0 && required) setDraft(value);
   };
 
   useEffect(() => {
@@ -106,24 +115,24 @@ export function PoPicker({
         aria-expanded={open}
         aria-label={`${label}: ${selected.map((po) => po.name).join(", ") || "none"}`}
       >
-        <PoChips pos={selected} />
+        <PoChips pos={selected} placeholder={placeholder} />
         {!disabled && (
           <svg className="po-caret" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
         )}
       </button>
       {/* Rendered on <body> so the surrounding form or table styles can't reach it. */}
       {open && position && createPortal(
-        <div ref={panel} className="po-panel" style={{ top: position.top, bottom: position.bottom, left: position.left, minWidth: position.width, maxHeight: position.maxHeight }} role="listbox" aria-multiselectable="true">
+        <div ref={panel} className="po-panel" style={{ top: position.top, bottom: position.bottom, left: position.left, minWidth: position.width, maxHeight: position.maxHeight }} role="listbox" aria-multiselectable="true" onClick={(event) => event.stopPropagation()}>
           <div className="po-options">
             {options.map((option) => (
               <label key={option.id} className={`po-option ${draft.includes(option.id) ? "checked" : ""}`}>
                 <input type="checkbox" checked={draft.includes(option.id)} onChange={() => toggle(option.id)} />
-                <span className="po-swatch" style={{ background: option.color }} aria-hidden="true" />
+                <span className="po-swatch" style={{ background: option.color ?? NEUTRAL }} aria-hidden="true" />
                 <span className="po-option-name">{option.name}</span>
               </label>
             ))}
           </div>
-          {draft.length === 0 && <p className="po-hint">Pick at least one PO.</p>}
+          {draft.length === 0 && required && <p className="po-hint">Pick at least one PO.</p>}
           <div className="po-panel-footer">
             {onCreate && (
               <button
@@ -137,7 +146,7 @@ export function PoPicker({
                 ＋ New PO
               </button>
             )}
-            <button type="button" className="small-primary" onClick={close} disabled={draft.length === 0}>Done</button>
+            <button type="button" className="small-primary" onClick={close} disabled={draft.length === 0 && required}>Done</button>
           </div>
         </div>,
         document.body,

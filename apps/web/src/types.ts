@@ -85,7 +85,6 @@ export type Task = {
   priorityId: string | null;
   statusId: string;
   assigneeId: string | null;
-  testedById: string | null;
   reporterId: string;
   clients: Colored[];
   type: Colored | null;
@@ -93,7 +92,8 @@ export type Task = {
   status: Colored & { isClosed: boolean };
   reporter: Named;
   assignee: Named | null;
-  testedBy: Named | null;
+  // "Tested by": any number of people (none yet = empty).
+  testers: Named[];
   reportedDate: string;
   expectedDeliveryDate: string | null;
   deliveredDate: string | null;
@@ -127,7 +127,7 @@ export type TaskUpdate = Partial<{
   priorityId: string | null;
   statusId: string;
   assigneeId: string | null;
-  testedById: string | null;
+  testerIds: string[];
   reportedDate: string;
   expectedDeliveryDate: string | null;
   deliveredDate: string | null;
@@ -141,7 +141,7 @@ export type NewTask = {
   priorityId?: string | null;
   statusId?: string;
   assigneeId: string | null;
-  testedById: string | null;
+  testerIds: string[];
   reportedDate: string;
   expectedDeliveryDate: string | null;
   comment?: string;

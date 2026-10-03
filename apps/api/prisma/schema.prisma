@@ -58,7 +58,7 @@ model User {
 
   reportedTasks Task[]         @relation("TaskReporter")
   assignedTasks Task[]         @relation("TaskAssignee")
-  testedTasks   Task[]         @relation("TaskTester")
+  testedTasks   Task[]         @relation("TaskTesters")
   comments      Comment[]
   attachments   Attachment[]   @relation("AttachmentUploader")
   history       TaskHistory[]
@@ -169,8 +169,8 @@ model Task {
   reporter             User      @relation("TaskReporter", fields: [reporterId], references: [id])
   assigneeId           String?
   assignee             User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  testedById           String?
-  testedBy             User?     @relation("TaskTester", fields: [testedById], references: [id], onDelete: SetNull)
+  // "Tested by": one or more people whose role can test (or none yet).
+  testers              User[]    @relation("TaskTesters")
   // Shown as "Date": the day the task was assigned.
   reportedDate         DateTime  @db.Date
   // Shown as "Probable date": the developer's estimate.
@@ -188,7 +188,6 @@ model Task {
   @@index([reporterId])
   @@index([statusId])
   @@index([assigneeId])
-  @@index([testedById])
 }
 
 // Evidence files (screenshots, logs, PDFs) kept in the database so they're backed up with the

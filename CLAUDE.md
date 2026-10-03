@@ -79,7 +79,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - `number` (autoincrement "Issue No"), `title`, `description`.
   - `clients Client[]` (many-to-many; a task has one or more POs).
   - `typeId?`, `priorityId?`, `statusId`.
-  - People: `reporterId` (creator), `assigneeId?`, `testedById?`.
+  - People: `reporterId` (creator), `assigneeId?`, and `testers User[]` (many-to-many "Tested by": none, one or several; migration `20261003120000_multiple_testers` moved the old single `testedById` into it).
   - `@db.Date` dates: `reportedDate` ("Date" / assigned on), `expectedDeliveryDate` ("Probable date", the developer's estimate) and `deliveredDate` ("Completed").
 - **Client:** a PO. Has `name`, `color`, `isActive`. The code and DB say `Client`; the UI says "PO" / "Partner Organisation".
 - **Configurable data:**
@@ -118,7 +118,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - Entering a closed status stamps `deliveredDate` with today; leaving it clears the date.
   - **Gap days** = today − probable date, and `null` once closed (`lib/dates.ts`). The list API computes it.
 - **Task fields:**
-  - "Tested by" must be a user whose role has `canTest`.
+  - Every "Tested by" person being added must be an active user whose role has `canTest` (people already on the task may stay). The API takes `testerIds: string[]` on create and PATCH; history records the names joined, e.g. "A, B".
   - New tasks need at least one active PO. The status must be the initial one or one step from it.
   - Without `task.set_priority`, priority is left null.
 - **Notifications:** assigning a task creates a notification for the assignee.
@@ -178,7 +178,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - A "New task" button opens `NewTaskModal` (sectioned form). It has an **Evidence** section (`components/Evidence.tsx`): Ctrl+V anywhere in the form attaches a pasted screenshot, or drop or browse for files. The files upload right after the task is created. A failed file doesn't undo the task; it shows an error naming it.
   - Titles with evidence show a paperclip count. The drawer's Evidence gallery shows thumbnails and files, with add (paste, drop, browse) and remove.
 - **Other components:**
-  - `PoPicker`: multi-select PO list, rendered on `document.body` through a portal so form and table CSS can't leak into it. It commits when closed.
+  - `PoPicker`: multi-select list for POs, and with `required={false}` for testers (Tested by) too, rendered on `document.body` through a portal so form and table CSS can't leak into it. It commits when closed.
   - `TaskDrawer`: details, comments, history, plus Edit (title, PO, type, Date, Probable date; needs `access.edit`) and Delete (needs `access.delete`, with a confirm).
   - `Logo.tsx`: `Logo` and `Brand` (logo plus "B-Track" wordmark).
   - `NavIcon`: sidebar line icons.

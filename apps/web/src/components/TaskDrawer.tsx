@@ -16,13 +16,14 @@ const draftOf = (task: Task): Draft => ({
   expectedDeliveryDate: task.expectedDeliveryDate,
 });
 
-function PersonRow({ label, person, empty }: { label: string; person: Named | null; empty: string }) {
+function PersonRow({ label, people, empty }: { label: string; people: Array<Named | null>; empty: string }) {
+  const named = people.filter((person): person is Named => person !== null);
   return (
     <div>
       <dt>{label}</dt>
-      <dd>
-        {person ? (
-          <span className="person"><Avatar name={person.name} size={24} />{person.name}</span>
+      <dd className="people">
+        {named.length > 0 ? (
+          named.map((person) => <span key={person.id} className="person"><Avatar name={person.name} size={24} />{person.name}</span>)
         ) : (
           <span className="muted">{empty}</span>
         )}
@@ -265,9 +266,9 @@ export function TaskDrawer({
               <section className="info-card">
                 <h3>People</h3>
                 <dl>
-                  <PersonRow label="Assigned dev" person={task.assignee} empty="Unassigned" />
-                  <PersonRow label="Tested by" person={task.testedBy} empty="Not yet" />
-                  <PersonRow label="Created by" person={task.reporter} empty="—" />
+                  <PersonRow label="Assigned dev" people={[task.assignee]} empty="Unassigned" />
+                  <PersonRow label="Tested by" people={task.testers} empty="Not yet" />
+                  <PersonRow label="Created by" people={[task.reporter]} empty="—" />
                 </dl>
               </section>
               <section className="info-card">

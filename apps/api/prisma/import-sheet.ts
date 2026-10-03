@@ -118,7 +118,7 @@ async function main() {
           statusId: statusByName.get(row.status)!.id,
           reporterId: importer.id,
           assigneeId: userByName.get(row.dev)!.id,
-          testedById: row.tester ? userByName.get(row.tester)!.id : null,
+          testers: { connect: row.tester ? [{ id: userByName.get(row.tester)!.id }] : [] },
           reportedDate: day(date!),
           expectedDeliveryDate: row.probable ? day(row.probable) : null,
           deliveredDate: row.completed ? day(row.completed) : null,

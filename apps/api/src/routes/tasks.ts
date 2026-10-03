@@ -19,7 +19,7 @@ export const taskInclude = {
   status: { select: { id: true, name: true, color: true, isClosed: true } },
   reporter: { select: { id: true, name: true } },
   assignee: { select: { id: true, name: true } },
-  testedBy: { select: { id: true, name: true } },
+  testers: { select: { id: true, name: true }, orderBy: { name: "asc" } },
   // The newest comment fills the sheet's Comments column.
   comments: {
     orderBy: { createdAt: "desc" },
@@ -91,13 +91,20 @@ async function findAssignee(actor: Actor, assignRule: "anyone" | "self" | "none"
   return user;
 }
 
-// Testers must be active users whose role can test (Business Analysts by default).
-async function findTester(id: string) {
-  const user = await prisma.user.findUnique({ where: { id }, include: { role: true } });
-  if (!user || !user.isActive) throw new HttpError(400, "Unknown or inactive tester");
-  if (!user.role.canTest) throw new HttpError(400, `${user.name}'s role can't test tasks`);
-  return user;
+// Testers being added must be active users whose role can test; ones already on the task may stay.
+async function findTesters(ids: string[], alreadyLinked: string[] = []) {
+  const unique = [...new Set(ids)];
+  const users = await prisma.user.findMany({ where: { id: { in: unique } }, include: { role: true }, orderBy: { name: "asc" } });
+  if (users.length !== unique.length) throw new HttpError(400, "Unknown tester");
+  for (const user of users) {
+    if (alreadyLinked.includes(user.id)) continue;
+    if (!user.isActive) throw new HttpError(400, `${user.name} is inactive`);
+    if (!user.role.canTest) throw new HttpError(400, `${user.name}'s role can't test tasks`);
+  }
+  return users;
 }
+
+const names = (people: Array<{ name: string }>) => people.map((person) => person.name).sort().join(", ") || null;
 
 function assignmentNotice(actor: Actor, assigneeId: string | null, task: { id: string; number: number; title: string }) {
   if (!assigneeId || assigneeId === actor.id) return null;
@@ -147,7 +154,7 @@ const createTaskSchema = z.object({
   typeId: z.string().min(1).nullish(),
   priorityId: z.string().min(1).nullish(),
   assigneeId: z.string().min(1).nullish(),
-  testedById: z.string().min(1).nullish(),
+  testerIds: z.array(z.string().min(1)).max(20).optional(),
   // Defaults to the initial status; anything else must be one step away from it.
   statusId: z.string().min(1).optional(),
   reportedDate: dateOnly.optional(),
@@ -168,7 +175,7 @@ tasksRouter.post(
     // Without "set priority" the priority stays blank for a BA/Admin to fill in.
     const priority = access.setPriority && input.priorityId ? await findPriority(input.priorityId) : null;
     const assignee = input.assigneeId ? await findAssignee(actor, access.assign, input.assigneeId) : null;
-    const tester = input.testedById ? await findTester(input.testedById) : null;
+    const testers = input.testerIds?.length ? await findTesters(input.testerIds) : [];
     if (input.comment && !access.comment) throw new HttpError(403, "Your role can't comment");
 
     const initialStatus = await prisma.status.findFirst({ where: { isInitial: true }, orderBy: { sortOrder: "asc" } });
@@ -197,7 +204,7 @@ tasksRouter.post(
           typeId: type?.id ?? null,
           priorityId: priority?.id ?? null,
           assigneeId: assignee?.id ?? null,
-          testedById: tester?.id ?? null,
+          testers: { connect: testers.map((tester) => ({ id: tester.id })) },
           statusId: status.id,
           reporterId: actor.id,
           reportedDate,
@@ -229,7 +236,7 @@ const updateTaskSchema = z
     priorityId: z.string().min(1).nullable(),
     statusId: z.string().min(1),
     assigneeId: z.string().min(1).nullable(),
-    testedById: z.string().min(1).nullable(),
+    testerIds: z.array(z.string().min(1)).max(20),
     reportedDate: dateOnly,
     expectedDeliveryDate: dateOnly.nullable(),
     deliveredDate: dateOnly.nullable(),
@@ -296,11 +303,13 @@ tasksRouter.patch(
       data.assigneeId = assignee?.id ?? null;
       record("Assignee", task.assignee?.name ?? null, assignee?.name ?? null);
     }
-    if (input.testedById !== undefined && input.testedById !== task.testedById) {
-      if (!access.setTester) throw new HttpError(403, "You can only choose the tester on your own tasks");
-      const tester = input.testedById ? await findTester(input.testedById) : null;
-      data.testedById = tester?.id ?? null;
-      record("Tested by", task.testedBy?.name ?? null, tester?.name ?? null);
+    if (input.testerIds !== undefined) {
+      const testers = await findTesters(input.testerIds, task.testers.map((tester) => tester.id));
+      if (names(testers) !== names(task.testers)) {
+        if (!access.setTester) throw new HttpError(403, "You can only choose testers on your own tasks");
+        data.testers = { set: testers.map((tester) => ({ id: tester.id })) };
+        record("Tested by", names(task.testers), names(testers));
+      }
     }
 
     // Workflow: only configured transitions are allowed; entering a closed status stamps the

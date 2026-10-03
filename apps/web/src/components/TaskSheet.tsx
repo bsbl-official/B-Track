@@ -4,7 +4,7 @@ import { errorMessage, formatDate, hasPermission } from "../format";
 import { navigate } from "../router";
 import { PERMISSIONS, type Meta, type Named, type NewTask, type Profile, type Task, type TaskUpdate } from "../types";
 import { NewTaskModal } from "./NewTaskModal";
-import { PoChips } from "./PoPicker";
+import { PoChips, PoPicker } from "./PoPicker";
 import { FilterBar, activeFilterChips, defaultFilters, emptyFilters, matchesFilters, type Filters } from "./TaskFilters";
 import { TaskDrawer } from "./TaskDrawer";
 import { TypeIcon } from "./TypeIcon";
@@ -424,7 +424,7 @@ function compareTasks(a: Task, b: Task, key: SortKey, statusById: Map<string, { 
     case "title": return text(a.title, b.title);
     case "assignee": return text(a.assignee?.name, b.assignee?.name);
     case "priority": return number(a.priority?.rank ?? null, b.priority?.rank ?? null);
-    case "testedBy": return text(a.testedBy?.name, b.testedBy?.name);
+    case "testedBy": return text(a.testers.map((t) => t.name).join(", "), b.testers.map((t) => t.name).join(", "));
     case "expectedDeliveryDate": return text(a.expectedDeliveryDate, b.expectedDeliveryDate);
     case "gapDays": return number(a.gapDays, b.gapDays);
     case "status": return (statusById.get(a.statusId)?.sortOrder ?? 0) - (statusById.get(b.statusId)?.sortOrder ?? 0);
@@ -548,7 +548,8 @@ function TaskRow({
   );
   // Developers and Business Analysts (roles with "Can test tasks").
   const testers: Named[] = meta.users.filter((user) => user.canTest);
-  const testerOptions = task.testedBy && !testers.some((user) => user.id === task.testedById) ? [...testers, task.testedBy] : testers;
+  // People already testing the task stay listed even if they can no longer be picked.
+  const testerOptions = [...testers, ...task.testers.filter((tester) => !testers.some((user) => user.id === tester.id))];
   const update = (change: TaskUpdate) => onUpdate(task.id, change);
 
   return (
@@ -588,7 +589,11 @@ function TaskRow({
         <CellSelect label="Priority" value={task.priorityId ?? ""} color={task.priority?.color} options={meta.priorities} allowEmpty="—" disabled={!access.setPriority} onChange={(priorityId) => update({ priorityId: priorityId || null })} className="centered" />
       </td>
       <td>
-        <CellSelect label="Tested by" value={task.testedById ?? ""} options={testerOptions} allowEmpty="—" disabled={!access.setTester} onChange={(testedById) => update({ testedById: testedById || null })} />
+        {access.setTester ? (
+          <PoPicker label="Tested by" placeholder="—" required={false} options={testerOptions} value={task.testers.map((tester) => tester.id)} onChange={(testerIds) => update({ testerIds })} />
+        ) : (
+          <PoChips pos={task.testers} placeholder="—" />
+        )}
       </td>
       <td>
         <DateCell label="Probable date" value={task.expectedDeliveryDate} alert={isOverdue(task)} disabled={!editable} onChange={(expectedDeliveryDate) => update({ expectedDeliveryDate })} />

@@ -32,11 +32,15 @@ async function main() {
   await copy("Statuses", await source.status.findMany(), (data) => target.status.createMany({ data }));
   await copy("Status transitions", await source.statusTransition.findMany(), (data) => target.statusTransition.createMany({ data }));
 
-  const tasks = await source.task.findMany({ include: { clients: { select: { id: true } } } });
-  await copy("Tasks", tasks.map(({ clients: _clients, ...task }) => task), (data) => target.task.createMany({ data }));
+  const tasks = await source.task.findMany({ include: { clients: { select: { id: true } }, testers: { select: { id: true } } } });
+  await copy("Tasks", tasks.map(({ clients: _clients, testers: _testers, ...task }) => task), (data) => target.task.createMany({ data }));
   const links = tasks.flatMap((task) => task.clients.map((client) => ({ clientId: client.id, taskId: task.id })));
   await copy("Task–PO links", links, (batch) =>
     target.$transaction(batch.map((link) => target.task.update({ where: { id: link.taskId }, data: { clients: { connect: { id: link.clientId } } } }))),
+  );
+  const testerLinks = tasks.flatMap((task) => task.testers.map((tester) => ({ userId: tester.id, taskId: task.id })));
+  await copy("Task–tester links", testerLinks, (batch) =>
+    target.$transaction(batch.map((link) => target.task.update({ where: { id: link.taskId }, data: { testers: { connect: { id: link.userId } } } }))),
   );
   // Explicit issue numbers don't move the counter; continue after the highest one.
   await target.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Task"', 'number'), COALESCE((SELECT MAX("number") FROM "Task"), 1))`);

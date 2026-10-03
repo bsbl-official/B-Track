@@ -55,7 +55,7 @@ export function NewTaskModal({
     priorityId: null,
     statusId: initialStatus?.id,
     assigneeId: assignAny ? null : (assignees[0]?.id ?? null),
-    testedById: null,
+    testerIds: [],
     reportedDate: todayIso(),
     expectedDeliveryDate: null,
     comment: "",
@@ -230,13 +230,10 @@ export function NewTaskModal({
                 </select>
               </label>
 
-              <label>
-                <span>Tested by</span>
-                <select value={draft.testedById ?? ""} onChange={(event) => change({ testedById: event.target.value || null })}>
-                  <option value="">Not yet</option>
-                  {testers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-                </select>
-              </label>
+              <div className="field">
+                <span>Tested by <em>one or more, optional</em></span>
+                <PoPicker variant="field" label="Tested by" placeholder="Not yet" required={false} options={testers} value={draft.testerIds} onChange={(testerIds) => change({ testerIds })} />
+              </div>
 
               <div className="field">
                 <span>Priority {canSetPriority ? <em>1 is most urgent</em> : <em>set by BA/Admin</em>}</span>
