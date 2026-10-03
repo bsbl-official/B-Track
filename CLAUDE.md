@@ -170,7 +170,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - **Read-only in the sheet:** Date, PO, Issue title and type. They are edited in the drawer (Edit). Assigned dev, Priority, Tested by, Probable date and Status are still edited inline and save on change.
   - Bug/Feature shows as a `TypeIcon` before the title; there is no Type column.
   - There is no Completed column; the completed date appears in the `TaskDrawer`.
-  - View tabs: All / Open / Overdue / Due in 3 days / Completed.
+  - View tabs: All / Open / Unassigned / Overdue / Due in 3 days / Completed. **Unassigned** = open tasks with no assignee, for everyone to pick up; choosing it clears any Assigned dev filter (otherwise a developer's default "me" filter would always empty it).
   - **Filters** (`TaskFilters.tsx`): the row just above the table has filter chips on the left and a search box plus Filters button on the right (not in the top bar). One panel holds every filter: PO, type, priority, status, assigned dev, tested by, and date ranges for Date, Probable date and Completed.
   - **Default filter** (`defaultFilters`): assignable roles (developers, BAs) open on "Assigned dev = me"; admins open on all tasks. It's only a starting point: everyone can clear it and see all tasks. "Back to my default" restores it.
   - Rows use the chosen sort only. There is no unassigned-first ordering; the owner rejected it.

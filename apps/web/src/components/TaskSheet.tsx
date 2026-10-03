@@ -9,7 +9,7 @@ import { FilterBar, activeFilterChips, defaultFilters, emptyFilters, matchesFilt
 import { TaskDrawer } from "./TaskDrawer";
 import { TypeIcon } from "./TypeIcon";
 
-type View = "all" | "open" | "overdue" | "dueSoon" | "completed";
+type View = "all" | "open" | "unassigned" | "overdue" | "dueSoon" | "completed";
 type SortKey =
   | "reportedDate" | "client" | "number" | "title" | "assignee" | "priority"
   | "testedBy" | "expectedDeliveryDate" | "gapDays" | "status";
@@ -22,6 +22,8 @@ const isDueSoon = (task: Task) => task.gapDays !== null && task.gapDays <= 0 && 
 const views: Array<{ key: View; label: string; matches: (task: Task) => boolean }> = [
   { key: "all", label: "All", matches: () => true },
   { key: "open", label: "Open", matches: (task) => !task.status.isClosed },
+  // Open work nobody has taken yet; anyone who can take tasks may claim one.
+  { key: "unassigned", label: "Unassigned", matches: (task) => !task.status.isClosed && task.assigneeId === null },
   { key: "overdue", label: "Overdue", matches: isOverdue },
   { key: "dueSoon", label: `Due in ${DUE_SOON_DAYS} days`, matches: isDueSoon },
   { key: "completed", label: "Completed", matches: (task) => task.status.isClosed },
@@ -275,7 +277,11 @@ export function TaskSheet({
             role="tab"
             aria-selected={view === item.key}
             className={`view-tab ${item.key} ${view === item.key ? "active" : ""}`}
-            onClick={() => setView(item.key)}
+            onClick={() => {
+              setView(item.key);
+              // An "Assigned dev" filter (e.g. the default "me") would always empty this tab.
+              if (item.key === "unassigned" && filters.assigneeId) setFilters((current) => ({ ...current, assigneeId: "" }));
+            }}
           >
             {item.label}
             <span className="view-count">{counts[item.key]}</span>

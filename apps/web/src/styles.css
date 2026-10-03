@@ -81,6 +81,7 @@ h1 { color: #1f2329; font: 700 24px var(--font-display); letter-spacing: -.6px; 
 .view-tab.active .view-count { background: var(--accent-soft); color: #a8121a; }
 .view-tab.overdue .view-count { background: #fdecea; color: #c0392b; }
 .view-tab.dueSoon .view-count { background: #fff4e5; color: #b7791f; }
+.view-tab.unassigned .view-count { background: #eaf3ff; color: #2f5fa8; }
 
 .filter-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .search-input, .filter-select { background: #fff; border: 1px solid #e1e4e9; border-radius: 7px; color: #343a45; font-size: 12px; height: 32px; padding: 0 10px; }
