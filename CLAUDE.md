@@ -205,7 +205,7 @@ The real team members and POs are internal, so they're named only in the git-ign
 - **Users:**
   - Two developers and two testers came from the sheet; the testers have the Business Analyst role.
   - All four have **placeholder `@example.com` emails** that the owner will replace with real ones.
-  - Seed users: Ada Admin, Bella Analyst, Dev One, Dev Two (`@example.com`, no passwords).
+  - Seed users: Ada Admin, Bella Analyst, Dev One, Dev Two (`@example.com`, no passwords). On 2026-10-03 the owner had these four and the four `@example.com` sheet placeholders deleted from the **hosted** database (the real people have their own accounts there); "Sheet import" was kept as the creator of the imported tasks. Running `db:seed` against the hosted database would re-create the samples.
   - An inactive "Sheet import" user is the reporter of the imported rows.
 - **POs:** eight real POs, each with a colour. The seed's sample POs (ALPHA, BETA, GAMMA, DELTA) are only created on an empty database.
 - **Encoding:** titles can be in Bangla; the database is UTF-8.
