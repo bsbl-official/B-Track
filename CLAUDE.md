@@ -198,7 +198,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 
 The real team members and POs are internal, so they're named only in the git-ignored `CLAUDE.local.md`, never in committed files.
 
-- **Tasks:** 79 tasks were once imported from the sheet (issues #3–#287), but on 2026-10-03 the owner had **all tasks deleted locally** to test with fresh data (users, POs and configuration kept; issue numbers restarted at #1). Note `db:seed` adds sample tasks whenever the task table is empty, and `db:import-sheet` would bring the sheet rows back; run neither unless asked.
+- **Tasks:** 79 tasks were once imported from the sheet (issues #3–#287), but on 2026-10-03 the owner had **all tasks deleted, locally and on Neon,** to test with fresh data (users, POs and configuration kept; issue numbers restarted at #1). Note `db:seed` adds sample tasks whenever the task table is empty, and `db:import-sheet` would bring the sheet rows back; run neither unless asked.
 - **Sheet data:** `db:import-sheet` reads the sheet's people, PO colours and rows from `apps/api/prisma/sheet-data.local.json`, which is git-ignored. Keep real data out of committed code.
 - **Users:**
   - Two developers and two testers came from the sheet; the testers have the Business Analyst role.
