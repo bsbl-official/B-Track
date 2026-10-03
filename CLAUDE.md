@@ -58,6 +58,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 - **Write files with UTF-8.** PowerShell redirection writes UTF-16. Git Bash mangles non-ASCII (Bangla) in `curl` arguments, so send Bangla test data from Node.
 - **`migrate reset` / destructive Prisma commands** need the user's explicit consent (`PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION`). Always ask first.
 - **The old WIN1252 database** is kept as `task_tracker_win1252_backup`; don't touch it.
+- **The hosted database is now the real one** (people sign up and work there). On 2026-10-03 the local database was replaced with a copy of hosted (after a backup to the local `task_tracker_backup_20261003`). Local is only a snapshot for development: copy hosted → local again to refresh it, and never copy local → hosted any more.
 
 ## Domain model (`apps/api/prisma/schema.prisma`)
 
