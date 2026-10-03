@@ -25,6 +25,13 @@ function StatIcon({ name }: { name: string }) {
   );
 }
 
+// Local date N days ago as "YYYY-MM-DD", the format the sheet filters use.
+function daysAgo(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function deadlineLabel(gapDays: number | null) {
   if (gapDays === null) return "";
   if (gapDays > 0) return `${gapDays}d late`;
@@ -45,15 +52,19 @@ export function DashboardPage({ profile }: { profile: Profile }) {
 
   // Without "dashboard.view_all" the API counts only the person's own (assigned) tasks, and the team-wide "Open tasks" card is left out.
   const teamWide = data?.scope === "all";
+  // Each card opens the task sheet showing exactly the tasks it counts. Without the team-wide
+  // scope the numbers cover only the person's assigned tasks, so the sheet filters to them too.
+  const mine: Record<string, string> = teamWide ? {} : { assignee: "me" };
+  const sheetLink = (params: Record<string, string>) => `#/tasks?${new URLSearchParams(params)}`;
   const cards = data
     ? [
-        { key: "assigned", caption: "ON YOUR PLATE", label: "Assigned to me", value: data.cards.assignedToMe, tone: "mine", foot: "Open tasks assigned to you" },
+        { key: "assigned", caption: "ON YOUR PLATE", label: "Assigned to me", value: data.cards.assignedToMe, tone: "mine", href: sheetLink({ view: "open", assignee: "me" }), foot: "Open tasks assigned to you" },
         ...(teamWide
-          ? [{ key: "open", caption: "ALL WORK", label: "Open tasks", value: data.cards.open, tone: "blue", foot: `${data.cards.total} tasks in total` }]
+          ? [{ key: "open", caption: "ALL WORK", label: "Open tasks", value: data.cards.open, tone: "blue", href: sheetLink({ view: "open" }), foot: `${data.cards.total} tasks in total` }]
           : []),
-        { key: "overdue", caption: "NEEDS ATTENTION", label: "Overdue", value: data.cards.overdue, tone: "red", foot: teamWide ? "Past the probable date" : "Your tasks past the probable date" },
-        { key: "soon", caption: "COMING UP", label: "Due in 3 days", value: data.cards.dueSoon, tone: "amber", foot: teamWide ? "Including today" : "Your tasks, including today" },
-        { key: "done", caption: "WRAPPED UP", label: "Completed", value: data.cards.deliveredRecently, tone: "green", foot: teamWide ? "In the last 30 days" : "By you in the last 30 days" },
+        { key: "overdue", caption: "NEEDS ATTENTION", label: "Overdue", value: data.cards.overdue, tone: "red", href: sheetLink({ view: "overdue", ...mine }), foot: teamWide ? "Past the probable date" : "Your tasks past the probable date" },
+        { key: "soon", caption: "COMING UP", label: "Due in 3 days", value: data.cards.dueSoon, tone: "amber", href: sheetLink({ view: "dueSoon", ...mine }), foot: teamWide ? "Including today" : "Your tasks, including today" },
+        { key: "done", caption: "WRAPPED UP", label: "Completed", value: data.cards.deliveredRecently, tone: "green", href: sheetLink({ view: "all", completedFrom: daysAgo(30), ...mine }), foot: teamWide ? "In the last 30 days" : "By you in the last 30 days" },
       ]
     : [];
 
@@ -77,15 +88,15 @@ export function DashboardPage({ profile }: { profile: Profile }) {
         <>
           <div className="stats-grid" aria-label="Task metrics">
             {cards.map((card) => (
-              <article key={card.key} className={`stat-card ${card.tone}${card.value === 0 ? " is-zero" : ""}`}>
+              <a key={card.key} href={card.href} className={`stat-card ${card.tone}${card.value === 0 ? " is-zero" : ""}`} title={`Show these tasks in the task sheet`}>
                 <div className="stat-top">
                   <span className="stat-icon" aria-hidden="true"><StatIcon name={card.key} /></span>
                   <span className="stat-caption">{card.caption}</span>
                 </div>
                 <strong className="stat-value">{card.value}</strong>
                 <span className="stat-label">{card.label}</span>
-                <div className="stat-foot"><span className="muted-dot" /> {card.foot}</div>
-              </article>
+                <div className="stat-foot"><span className="muted-dot" /> {card.foot}<span className="stat-go" aria-hidden="true">View →</span></div>
+              </a>
             ))}
           </div>
 

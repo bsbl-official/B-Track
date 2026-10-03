@@ -67,7 +67,8 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
     - **Admin:** has every permission.
     - **Business Analyst:** create, view all, edit all, assign to anyone, set priority, set status, comment. Assignable, and `canTest`.
     - **Developer:** create, **view all**, set priority, set status, comment. **No "assign to anyone"**: a developer can only set a task to themselves or Unassigned. Moving a task between people is for Admin and BA (owner's decision). Assignable, `canTest` too, and the default role.
-  - So "Assigned dev" and "Tested by" both list developers and BAs. The owner explicitly wants BAs assignable (a BA may take a testing task), and wants developers and BAs to see every task.
+    - **User:** no permissions, not assignable, `canTest`. Its one entry, "User" (`user-confirmation@b-track.invalid`, no password, so it can't sign in), stands for confirmation from the user's side in "Tested by".
+  - So "Assigned dev" lists developers and BAs, and "Tested by" lists developers, BAs and User. The owner explicitly wants BAs assignable (a BA may take a testing task), and wants developers and BAs to see every task.
 - **User:**
   - Profile: `firstName`, `lastName`, `name` ("First Last"), `email` (unique).
   - Credentials: `passwordHash` (scrypt, `scrypt$salt$hash`), `mustChangePassword`, `googleId`, `avatarUrl`.
@@ -83,12 +84,13 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 - **Configurable data:**
   - `TaskType`: Feature and Bug.
   - `Priority`: named "1" to "4" (1 most urgent), with a `rank`.
-  - `Status`: New, In Progress, Testing and Completed, with `isInitial` / `isClosed`.
+  - `Status`: New, In Progress, Testing, Completed and Blocked (added for the Oct'26 sheet), with `isInitial` / `isClosed`.
   - `StatusTransition`: the allowed moves.
     - New → In Progress / Testing / Completed
     - In Progress → New / Testing / Completed
     - Testing → In Progress / Completed
     - Completed → In Progress
+    - New / In Progress / Testing ↔ Blocked
 
   There is no admin UI for statuses, types or priorities yet; they come from the seed or DB.
 - **Attachment** (evidence): `fileName`, `mimeType`, `size`, `data Bytes`, `uploaderId`, deleted with the task.
@@ -198,7 +200,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 
 The real team members and POs are internal, so they're named only in the git-ignored `CLAUDE.local.md`, never in committed files.
 
-- **Tasks:** 79 tasks were once imported from the sheet (issues #3–#287), but on 2026-10-03 the owner had **all tasks deleted, locally and on Neon,** to test with fresh data (users, POs and configuration kept; issue numbers restarted at #1). Note `db:seed` adds sample tasks whenever the task table is empty, and `db:import-sheet` would bring the sheet rows back; run neither unless asked.
+- **Tasks:** on 2026-10-03 all earlier tasks were deleted (locally and on Neon), and the 57 filled rows of the "Daily Troubleshoot (Oct'26)" sheet were imported locally with `prisma/import-sheet-oct26.ts` (data in the git-ignored `sheet-data-oct26.local.json`; `--target` runs it against `TARGET_DATABASE_URL`). They keep their sheet issue numbers (#6–#288). **Assigned dev and Tested by were left blank on purpose:** the owner assigns them in the app. Empty sheet cells that are required here (Date, Status) were filled with the import date / New and noted in the description; #104 has no PO. New tasks continue from #289. `db:seed` adds sample tasks whenever the task table is empty; don't run it, or the old `db:import-sheet`, unless asked.
 - **Sheet data:** `db:import-sheet` reads the sheet's people, PO colours and rows from `apps/api/prisma/sheet-data.local.json`, which is git-ignored. Keep real data out of committed code.
 - **Users:**
   - Two developers and two testers came from the sheet; the testers have the Business Analyst role.

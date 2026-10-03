@@ -41,6 +41,15 @@ const roles = [
     canTest: true,
     isDefault: true,
   },
+  {
+    // Confirmation from the user side in "Tested by". Its one entry (below) can't sign in.
+    name: "User",
+    description: "Confirmation from the user's side (Tested by only; can't sign in)",
+    permissions: [],
+    isAssignable: false,
+    canTest: true,
+    isDefault: false,
+  },
 ];
 
 // Matches the team's Daily Troubleshoot sheet.
@@ -49,6 +58,7 @@ const statuses = [
   { name: "In Progress", color: "#ea580c", sortOrder: 2 },
   { name: "Testing", color: "#ca8a04", sortOrder: 3 },
   { name: "Completed", color: "#16a34a", sortOrder: 4, isClosed: true },
+  { name: "Blocked", color: "#b42318", sortOrder: 5 },
 ];
 
 const transitions: Array<[string, string]> = [
@@ -61,6 +71,12 @@ const transitions: Array<[string, string]> = [
   ["Testing", "In Progress"],
   ["Testing", "Completed"],
   ["Completed", "In Progress"],
+  ["New", "Blocked"],
+  ["In Progress", "Blocked"],
+  ["Testing", "Blocked"],
+  ["Blocked", "New"],
+  ["Blocked", "In Progress"],
+  ["Blocked", "Testing"],
 ];
 
 const types = [
@@ -82,6 +98,8 @@ const users = [
   { name: "Bella Analyst", email: "ba@example.com", role: "Business Analyst" },
   { name: "Dev One", email: "dev1@example.com", role: "Developer" },
   { name: "Dev Two", email: "dev2@example.com", role: "Developer" },
+  // Not a sample: the "User" tester entry. No password and an unroutable address, so it can't sign in.
+  { name: "User", email: "user-confirmation@b-track.invalid", role: "User" },
 ];
 
 // Sample POs, only created while there are none yet.

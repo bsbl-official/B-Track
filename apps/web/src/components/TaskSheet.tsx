@@ -99,16 +99,24 @@ export function TaskSheet({
   meta,
   profile,
   openTaskId,
+  preset,
   onMetaChanged,
 }: {
   meta: Meta;
   profile: Profile;
   openTaskId: string | null;
+  // A view and filters to open on, e.g. from a dashboard card: view=overdue&assignee=me&completedFrom=YYYY-MM-DD.
+  preset: URLSearchParams;
   onMetaChanged: () => void;
 }) {
   const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [view, setView] = useState<View>("open");
-  const [filters, setFilters] = useState<Filters>(() => defaultFilters(profile));
+  const presetView = views.find((item) => item.key === preset.get("view"))?.key;
+  const [view, setView] = useState<View>(presetView ?? "open");
+  const [filters, setFilters] = useState<Filters>(() =>
+    presetView
+      ? { ...emptyFilters, assigneeId: preset.get("assignee") === "me" ? profile.id : "", completedFrom: preset.get("completedFrom") ?? "" }
+      : defaultFilters(profile),
+  );
   const [shares, setShares] = useState(readShares);
   // The sheet always fits the space it has: track that width.
   const scroller = useRef<HTMLDivElement>(null);

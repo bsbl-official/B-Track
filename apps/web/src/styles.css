@@ -967,3 +967,9 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
   .drawer-tool span { display: none; }
   .drawer-tool { padding: 0 8px; }
 }
+
+/* Metric cards are links to the task sheet, filtered to what each card counts. */
+a.stat-card { color: inherit; cursor: pointer; display: block; text-decoration: none; }
+a.stat-card:focus-visible { outline: 3px solid color-mix(in srgb, var(--tone) 45%, transparent); outline-offset: 2px; }
+.stat-go { color: var(--tone-ink); font-weight: 600; margin-left: auto; opacity: 0; transform: translateX(-4px); transition: opacity .15s, transform .15s; }
+a.stat-card:hover .stat-go, a.stat-card:focus-visible .stat-go { opacity: 1; transform: none; }

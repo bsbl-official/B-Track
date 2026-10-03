@@ -195,7 +195,7 @@ export default function App() {
           {!meta && <p className="loading">Loading workspace…</p>}
           {meta && page === "dashboard" && <DashboardPage profile={profile} />}
           {meta && page === "tasks" && (
-            <TaskSheet meta={meta} profile={profile} openTaskId={route.params.get("open")} onMetaChanged={refreshMeta} />
+            <TaskSheet meta={meta} profile={profile} openTaskId={route.params.get("open")} preset={route.params} onMetaChanged={refreshMeta} />
           )}
           {meta && page === "pos" && <PosPage onChanged={refreshMeta} />}
           {meta && page === "access" && <AccessPage currentUserId={profile.id} onChanged={loadSession} />}
