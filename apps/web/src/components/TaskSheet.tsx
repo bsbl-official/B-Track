@@ -197,10 +197,16 @@ export function TaskSheet({
 
   const statusById = useMemo(() => new Map(meta.statuses.map((status) => [status.id, status])), [meta.statuses]);
 
-  const counts = useMemo(
-    () => Object.fromEntries(views.map((item) => [item.key, tasks?.filter(item.matches).length ?? 0])) as Record<View, number>,
-    [tasks],
-  );
+  // Tab counts follow the active filters. Opening "Unassigned" drops an Assigned dev filter, so its count ignores it too.
+  const counts = useMemo(() => {
+    const withoutAssignee = { ...filters, assigneeId: "" };
+    return Object.fromEntries(
+      views.map((item) => {
+        const applied = item.key === "unassigned" ? withoutAssignee : filters;
+        return [item.key, tasks?.filter((task) => item.matches(task) && matchesFilters(task, applied)).length ?? 0];
+      }),
+    ) as Record<View, number>;
+  }, [tasks, filters]);
 
   const visibleTasks = useMemo(() => {
     if (!tasks) return [];
