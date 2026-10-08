@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createDeadlineReminders } from "../lib/deadlineReminders.js";
 import { asyncHandler } from "../lib/http.js";
 import { prisma } from "../lib/prisma.js";
 import { getActor } from "../middleware/auth.js";
@@ -9,6 +10,7 @@ notificationsRouter.get(
   "/",
   asyncHandler(async (request, response) => {
     const actor = getActor(request);
+    await createDeadlineReminders(actor.id);
     const [items, unreadCount] = await Promise.all([
       prisma.notification.findMany({
         where: { userId: actor.id },

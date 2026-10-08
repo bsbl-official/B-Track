@@ -90,9 +90,12 @@ model Notification {
   // In-app page to open when there's no task, e.g. "access?tab=requests".
   link      String?
   message   String
+  // Set on automatic reminders (e.g. "overdue:<taskId>:<probable date>") so each is sent once.
+  reminderKey String?
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
+  @@unique([userId, reminderKey])
   @@index([userId, createdAt])
 }
 
