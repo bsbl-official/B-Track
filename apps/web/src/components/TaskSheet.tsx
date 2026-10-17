@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { api } from "../api";
 import { errorMessage, formatDate, hasPermission } from "../format";
 import { navigate } from "../router";
@@ -136,6 +136,7 @@ export function TaskSheet({
   const [sort, setSort] = useState<{ key: SortKey; direction: 1 | -1 }>({ key: "number", direction: -1 });
   const [toast, setToast] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [rescheduling, setRescheduling] = useState<{ task: Task; to: string | null } | null>(null);
 
   const permissions = profile.permissions;
   const canCreate = hasPermission(permissions, PERMISSIONS.taskCreate);
@@ -374,6 +375,7 @@ export function TaskSheet({
                 meta={meta}
                 profile={profile}
                 onUpdate={updateTask}
+                onReschedule={(task, to) => setRescheduling({ task, to })}
                 onOpen={() => openTask(task.id)}
               />
             ))}
@@ -389,6 +391,18 @@ export function TaskSheet({
           onUpdated={replaceTask}
           onCreateClient={createClient}
           onClose={() => setCreating(false)}
+        />
+      )}
+
+      {rescheduling && (
+        <RescheduleDialog
+          task={rescheduling.task}
+          to={rescheduling.to}
+          onCancel={() => setRescheduling(null)}
+          onSave={async (comment) => {
+            replaceTask(await api.updateTask(rescheduling.task.id, { expectedDeliveryDate: rescheduling.to, comment }));
+            setRescheduling(null);
+          }}
         />
       )}
 
@@ -521,6 +535,69 @@ function DateCell({
   );
 }
 
+// Moving a probable date that was already set needs a reason, saved as a comment on the task.
+function RescheduleDialog({
+  task,
+  to,
+  onCancel,
+  onSave,
+}: {
+  task: Task;
+  to: string | null;
+  onCancel: () => void;
+  onSave: (comment: string) => Promise<void>;
+}) {
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onCancel();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!comment.trim()) return setError("Add a comment explaining why the probable date is changing.");
+    setBusy(true);
+    try {
+      await onSave(comment.trim());
+    } catch (saveError) {
+      setError(errorMessage(saveError));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onCancel()}>
+      <form className="modal reschedule-modal" role="dialog" aria-modal="true" aria-labelledby="reschedule-title" onSubmit={submit}>
+        <header className="modal-header">
+          <div>
+            <h2 id="reschedule-title">Change probable date</h2>
+            <p>
+              #{task.number} · {formatDate(task.expectedDeliveryDate)} → {to ? formatDate(to) : "not set"}
+            </p>
+          </div>
+          <button type="button" className="modal-close" onClick={onCancel} aria-label="Close">×</button>
+        </header>
+        <div className="modal-body">
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <label className="reschedule-field">
+            <span>Why is the probable date changing? <b className="req">*</b></span>
+            <textarea rows={3} maxLength={5000} autoFocus value={comment} onChange={(event) => setComment(event.target.value)} placeholder="e.g. Waiting for the PO to share test data" />
+            <em>Saved as a comment on the task.</em>
+          </label>
+        </div>
+        <footer className="modal-footer">
+          <button type="button" className="ghost-button" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="small-primary" disabled={busy || !comment.trim()}>{busy ? "Saving…" : "Save date"}</button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 // Read-only in the sheet: the title, type, date and PO are edited from the details drawer.
 function TitleCell({ value, type, evidenceCount }: { value: string; type: ReactNode; evidenceCount: number }) {
   return (
@@ -545,12 +622,14 @@ function TaskRow({
   meta,
   profile,
   onUpdate,
+  onReschedule,
   onOpen,
 }: {
   task: Task;
   meta: Meta;
   profile: Profile;
   onUpdate: (id: string, update: TaskUpdate) => void;
+  onReschedule: (task: Task, to: string | null) => void;
   onOpen: () => void;
 }) {
   const { access } = task;
@@ -610,7 +689,14 @@ function TaskRow({
         )}
       </td>
       <td>
-        <DateCell label="Probable date" value={task.expectedDeliveryDate} tone={isOverdue(task) ? "overdue" : isDueToday(task) ? "today" : null} disabled={!editable} onChange={(expectedDeliveryDate) => update({ expectedDeliveryDate })} />
+        <DateCell
+          label="Probable date"
+          value={task.expectedDeliveryDate}
+          tone={isOverdue(task) ? "overdue" : isDueToday(task) ? "today" : null}
+          disabled={!editable}
+          // Setting the first date saves straight away; moving one asks why first.
+          onChange={(expectedDeliveryDate) => (task.expectedDeliveryDate ? onReschedule(task, expectedDeliveryDate) : update({ expectedDeliveryDate }))}
+        />
       </td>
       <td className="col-gap"><GapCell task={task} /></td>
       <td>

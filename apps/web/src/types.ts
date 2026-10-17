@@ -131,6 +131,7 @@ export type TaskUpdate = Partial<{
   reportedDate: string;
   expectedDeliveryDate: string | null;
   deliveredDate: string | null;
+  comment: string;
 }>;
 
 export type NewTask = {

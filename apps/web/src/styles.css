@@ -368,6 +368,12 @@ h1 { color: #1f2329; font: 700 24px var(--font-display); letter-spacing: -.6px; 
 .modal-close:hover { background: #f1f2f5; color: #1f2329; }
 .modal-body { background: #f5f6f8; display: grid; gap: 14px; padding: 18px 26px; }
 .modal-body .form-error, .modal-body .form-success { margin: 0; }
+.reschedule-modal { max-width: 460px; }
+.reschedule-field { display: grid; gap: 6px; }
+.reschedule-field > span { color: #1f2329; font-size: 13px; font-weight: 600; }
+.reschedule-field textarea { border: 1px solid #d9dce2; border-radius: 9px; font: inherit; font-size: 13.5px; padding: 9px 11px; resize: vertical; }
+.reschedule-field textarea:focus { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
+.reschedule-field em { color: #7d8390; font-size: 12px; font-style: normal; }
 .req { color: var(--accent); font-weight: 700; }
 
 .form-section { background: #fff; border: 1px solid #e6e8ec; border-radius: 12px; padding: 18px 20px 20px; }

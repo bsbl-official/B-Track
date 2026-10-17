@@ -240,11 +240,17 @@ const updateTaskSchema = z
     reportedDate: dateOnly,
     expectedDeliveryDate: dateOnly.nullable(),
     deliveredDate: dateOnly.nullable(),
+    // The reason for moving the probable date; saved as a comment on the task.
+    comment: z.string().trim().max(5_000),
   })
   .partial()
   .strict();
 
 type Change = { field: string; oldValue: string | null; newValue: string | null };
+
+// "12 Oct 2026", as the web app shows dates.
+const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+const readableDate = (value: Date | null) => (value ? dateFormat.format(value) : "not set");
 
 const EDIT_FIELDS = ["title", "description", "clientIds", "typeId", "reportedDate", "expectedDeliveryDate", "deliveredDate"] as const;
 
@@ -348,9 +354,17 @@ tasksRouter.patch(
         : input.expectedDeliveryDate
           ? parseDateOnly(input.expectedDeliveryDate)
           : null;
+    // Moving (or clearing) a probable date that was already set needs a reason; the first one doesn't.
+    let reason: string | null = null;
     if (formatDateOnly(expectedDeliveryDate) !== formatDateOnly(task.expectedDeliveryDate)) {
+      const from = formatDateOnly(task.expectedDeliveryDate);
+      const to = formatDateOnly(expectedDeliveryDate);
+      if (from) {
+        if (!input.comment) throw new HttpError(400, "Add a comment explaining why the probable date is changing");
+        reason = `Probable date changed from ${readableDate(task.expectedDeliveryDate)} to ${readableDate(expectedDeliveryDate)}: ${input.comment}`;
+      }
       data.expectedDeliveryDate = expectedDeliveryDate;
-      record("Probable date", formatDateOnly(task.expectedDeliveryDate), formatDateOnly(expectedDeliveryDate));
+      record("Probable date", from, to);
     }
     assertDateOrder(reportedDate, expectedDeliveryDate);
 
@@ -364,6 +378,7 @@ tasksRouter.patch(
       await transaction.taskHistory.createMany({
         data: changes.map((change) => ({ ...change, taskId: task.id, actorId: actor.id })),
       });
+      if (reason) await transaction.comment.create({ data: { taskId: task.id, authorId: actor.id, body: reason } });
       const notice = saved.assigneeId !== task.assigneeId ? assignmentNotice(actor, saved.assigneeId, saved) : null;
       if (notice) await transaction.notification.create({ data: notice });
       return saved;

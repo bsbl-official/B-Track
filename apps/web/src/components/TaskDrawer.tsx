@@ -63,12 +63,16 @@ export function TaskDrawer({
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [dateReason, setDateReason] = useState("");
 
   const startEditing = () => {
     if (!task) return;
     setDraft(draftOf(task));
+    setDateReason("");
     setEditError(null);
   };
+  // Moving a probable date that was already set needs a reason (saved as a comment).
+  const reschedulingDate = task !== null && draft !== null && task.expectedDeliveryDate !== null && draft.expectedDeliveryDate !== task.expectedDeliveryDate;
 
   const saveEdits = async (event: FormEvent) => {
     event.preventDefault();
@@ -83,6 +87,10 @@ export function TaskDrawer({
     if (draft.typeId !== original.typeId) change.typeId = draft.typeId;
     if (draft.reportedDate !== original.reportedDate) change.reportedDate = draft.reportedDate;
     if (draft.expectedDeliveryDate !== original.expectedDeliveryDate) change.expectedDeliveryDate = draft.expectedDeliveryDate;
+    if (reschedulingDate) {
+      if (!dateReason.trim()) return setEditError("Add a comment explaining why the probable date is changing.");
+      change.comment = dateReason.trim();
+    }
     if (draft.clientIds.length !== original.clientIds.length || draft.clientIds.some((id) => !original.clientIds.includes(id))) change.clientIds = draft.clientIds;
     setBusy(true);
     try {
@@ -250,6 +258,12 @@ export function TaskDrawer({
                 <span>Probable date</span>
                 <input type="date" value={draft.expectedDeliveryDate ?? ""} onChange={(event) => changeDraft({ expectedDeliveryDate: event.target.value || null })} />
               </label>
+              {reschedulingDate && (
+                <label className="span-2">
+                  <span>Why is the probable date changing? <b className="req">*</b> <em>saved as a comment</em></span>
+                  <textarea rows={2} maxLength={5000} required value={dateReason} onChange={(event) => setDateReason(event.target.value)} placeholder="e.g. Waiting for the PO to share test data" />
+                </label>
+              )}
             </div>
             {editError && <p className="form-error" role="alert">{editError}</p>}
             <div className="drawer-actions">
