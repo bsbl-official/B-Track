@@ -42,6 +42,15 @@ const roles = [
     isDefault: true,
   },
   {
+    // Database administrator: the same access as a Developer.
+    name: "DBA",
+    description: "Database administrator; same access as a developer",
+    permissions: [PERMISSIONS.taskCreate, PERMISSIONS.taskViewAll, PERMISSIONS.taskSetPriority, PERMISSIONS.taskSetStatus, PERMISSIONS.commentCreate],
+    isAssignable: true,
+    canTest: true,
+    isDefault: false,
+  },
+  {
     // Confirmation from the user side in "Tested by". Its one entry (below) can't sign in.
     name: "User",
     description: "Confirmation from the user's side (Tested by only; can't sign in)",

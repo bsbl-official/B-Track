@@ -68,6 +68,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
     - **Admin:** has every permission.
     - **Business Analyst:** create, view all, edit all, assign to anyone, set priority, set status, comment. Assignable, and `canTest`.
     - **Developer:** create, **view all**, set priority, set status, comment. **No "assign to anyone"**: a developer can only set a task to themselves or Unassigned. Moving a task between people is for Admin and BA (owner's decision). Assignable, `canTest` too, and the default role.
+    - **DBA** (database administrator): the same access as Developer (migration `20261026090000_dba_role` copied the Developer role's permissions and flags). Not the default role.
     - **User:** no permissions, not assignable, `canTest`. Its one entry, "User" (`user-confirmation@b-track.invalid`, no password, so it can't sign in), stands for confirmation from the user's side in "Tested by".
   - So "Assigned dev" lists developers and BAs, and "Tested by" lists developers, BAs and User. The owner explicitly wants BAs assignable (a BA may take a testing task), and wants developers and BAs to see every task.
 - **User:**
