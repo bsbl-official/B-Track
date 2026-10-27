@@ -7,6 +7,7 @@ import { errorMessage, hasPermission } from "./format";
 import { AccessPage } from "./pages/AccessPage";
 import { ChoosePasswordPage } from "./pages/ChoosePasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { KpiPage } from "./pages/KpiPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PosPage } from "./pages/PosPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -20,6 +21,7 @@ type NavItem = { page: string; label: string; icon: string; permission?: string 
 const navItems: NavItem[] = [
   { page: "dashboard", label: "Dashboard", icon: "dashboard" },
   { page: "tasks", label: "Task sheet", icon: "tasks" },
+  { page: "kpi", label: "KPI report", icon: "kpi", permission: PERMISSIONS.kpiView },
   { page: "pos", label: "Partner Orgs (POs)", icon: "pos", permission: PERMISSIONS.poManage },
   { page: "access", label: "Access management", icon: "access", permission: PERMISSIONS.accessManage },
 ];
@@ -197,7 +199,8 @@ export default function App() {
           {meta && page === "tasks" && (
             <TaskSheet meta={meta} profile={profile} openTaskId={route.params.get("open")} preset={route.params} onMetaChanged={refreshMeta} />
           )}
-          {meta && page === "pos" && <PosPage onChanged={refreshMeta} />}
+          {meta && page === "kpi" && <KpiPage meta={meta} params={route.params} />}
+          {meta && page === "pos" &&<PosPage onChanged={refreshMeta} />}
           {meta && page === "access" && <AccessPage currentUserId={profile.id} onChanged={loadSession} />}
           {meta && page === "profile" && <ProfilePage profile={profile} onUpdated={setProfile} onLogout={logout} />}
         </div>

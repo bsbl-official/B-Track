@@ -103,10 +103,11 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - Upload rights follow `access.edit` (own tasks). Viewing needs task visibility. Removal is the uploader or `access.edit`.
   - Adds and removals are written to TaskHistory as field "Evidence".
 - **Comment**, **TaskHistory** (one row per field change, with a human label: "Title", "PO", "Status", "Probable date" and so on), and **Notification** (`message`, optional `link` such as `access?tab=requests`, `readAt`).
+  - History stores display values (names), and names can repeat (two users share one). Since migration `20261027090000_kpi_report`, "Assignee" rows also carry `oldRef` / `newRef` (user ids). Older rows have none; the KPI report resolves them by walking back from the current assignee, then by unique name.
 
 ### Business rules (the server is the source of truth)
 
-- **Permissions:** a person's effective permissions are the role's permissions, plus grants, minus revokes (`lib/permissions.ts`). Code checks **permission keys, never role names**. The keys are `task.create`, `task.view_all`, `task.edit_all`, `task.assign_any`, `task.set_priority`, `task.set_status`, `comment.create`, `dashboard.view_all`, `po.manage` and `access.manage`.
+- **Permissions:** a person's effective permissions are the role's permissions, plus grants, minus revokes (`lib/permissions.ts`). Code checks **permission keys, never role names**. The keys are `task.create`, `task.view_all`, `task.edit_all`, `task.assign_any`, `task.set_priority`, `task.set_status`, `comment.create`, `dashboard.view_all`, `kpi.view`, `po.manage` and `access.manage`. `kpi.view` ("See KPI reports") was given by migration to roles that have `access.manage` (Admin).
 - **Dashboard scope:** `dashboard.view_all` (Admin only by default; grantable per person) shows team-wide metrics. Without it, `GET /api/dashboard` counts only tasks **assigned to** the person, and the page shows four cards (Assigned to me, Overdue, Due today, Completed) with no "Open tasks" card.
 - **Per-task access:** `lib/taskAccess.ts` works out what a person may do with a given task. The API returns it as `task.access` and the UI only hides or disables controls based on it.
   - A person's **own tasks** are the ones **assigned to them**, plus ones they created that are **still unassigned**. Once a task is assigned to someone else it belongs to that assignee: the creator can only view it (and comment), like any colleague (owner's rule, 2026-10-03). On own tasks people can edit every field, change status (with `task.set_status`), set priority (with `task.set_priority`), **choose the tester**, and **assign** (to anyone with `task.assign_any`, otherwise only themselves or Unassigned).
@@ -123,6 +124,12 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - New tasks need at least one active PO. The status must be the initial one or one step from it.
   - Without `task.set_priority`, priority is left null.
 - **Notifications:** assigning a task creates a notification for the assignee.
+- **KPI report** (`lib/kpi.ts`; no scores, by the owner's choice): replays each task's Status, Assignee and Probable date history into timelines and credits events to whoever held the task at the time.
+  - Completed tasks (Completed date in the period, still closed) go to the assignee at the last completion, timed from when it was assigned to them.
+  - On time compares the completed date with the **first** probable date while it was theirs (the date it had when they got it, or the first one they set).
+  - Date changes (with the reason from the comment the PATCH writes), Testing → In Progress ("failed testing"), Completed → open ("reopened", charged to whoever completed it), time in Blocked, priority/type mix and PO share (a multi-PO task counts toward each PO).
+  - Tasks reported by `sheet-import@example.com` (the imported #6–#288) are left out: they have no history before 2026-10-03 (owner agreed). Days are calendar days (owner: no working days, no task size, no per-priority time limits for now).
+  - Statuses are matched by name ("In Progress", "Testing", "Blocked"), plus `isClosed`.
 - **Access guard:** at least one approved, active user must keep `access.manage`. `assertAccessManagerRemains` in `routes/access.ts` simulates the change before applying it.
 
 ## Auth and onboarding flow
@@ -151,6 +158,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 | `GET/PATCH /api/auth/me`, `POST /api/auth/me/password` | profile, name, password |
 | `GET /api/meta` | statuses (with `nextStatusIds`), types, priorities, users, active POs |
 | `GET /api/dashboard` | metric cards, status counts, deadlines, activity |
+| `GET /api/kpi?from=&to=&people=&pos=` | developer KPI report (`kpi.view`); comma-separated ids; `pos` keeps only tasks for those POs (and PO shares count only them) |
 | `GET/POST /api/tasks`, `GET/PATCH/DELETE /api/tasks/:id`, `POST /api/tasks/:id/comments` | tasks (PATCH records history) |
 | `GET/POST /api/clients`, `PATCH /api/clients/:id` | POs (`po.manage`) |
 | `GET /api/notifications`, `POST /:id/read`, `POST /read-all` | notifications |
@@ -162,6 +170,15 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 - **Pages:**
   - `DashboardPage`
   - `TaskSheet` (component)
+  - `KpiPage` (`#/kpi?from=&to=&roles=&pos=&people=`, needs `kpi.view`). Filters: period presets and From/To, Role (opens on Developer + DBA; empty = all roles), PO (empty = all) and People (the list follows the roles). **No full-team report** (owner): nothing is built until people are chosen. Then the report as A4 sheets: an overview page only when 2+ people are chosen, one section per person, definitions. Each person's part is **stats and charts, not task lists** (owner): 8 tiles (completed, average time to finish, on time %, date changes, failed testing, reopened, days blocked, late tasks), then chart cards (`Card`):
+    - Completed tasks by PO (donut in PO colours, more than six POs fold into "Other")
+    - Delivered when promised (donut)
+    - Time to finish a task (average from assigned to completed, a "where the time went" split by status, and a distribution of durations)
+    - Urgency and kind of work (bars)
+    - Probable date changes (tasks per PO in PO colours, plus the reasons)
+    - Took longer than average (up to 10 tasks with PO)
+
+    The 2+ people overview page uses the same tiles and cards. "Promised date" = the first probable date. Rejected by the owner, don't bring back: a Gantt timeline with probable-date diamonds, full lists of completed / failed / reopened / blocked tasks, and numbered boxed sections. Charts are in `components/KpiCharts.tsx` (SVG donut, plain CSS bars). "Download PDF" is `window.print()`; the print CSS (`@page` margin 0, `box-decoration-break: clone`) prints only the sheets, and the browser's "Save as PDF" keeps Bangla text intact. To check the PDF, render it with headless Edge's `Page.printToPDF` (`preferCSSPageSize: true`).
   - `PosPage` (needs `po.manage`)
   - `AccessPage`: tabs Requests / Users / Roles & permissions (needs `access.manage`)
   - `ProfilePage`

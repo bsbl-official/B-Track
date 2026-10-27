@@ -739,7 +739,7 @@ h2, h3 { font-family: var(--font-display); }
 .nav-collapsed .sidebar { padding-left: 12px; padding-right: 12px; width: 72px; }
 .nav-collapsed .main-panel { margin-left: 72px; }
 .nav-collapsed .sidebar .brand { justify-content: center; padding: 4px 0 0; }
-.nav-collapsed .brand-name,
+.nav-collapsed .sidebar .brand-name,
 .nav-collapsed .nav-text,
 .nav-collapsed .profile-copy { display: none; }
 .nav-collapsed .sidebar .nav-label { font-size: 0; height: 1px; margin: 40px 6px 14px; background: #2a2e36; }
@@ -775,7 +775,7 @@ h2, h3 { font-family: var(--font-display); }
 @media (max-width: 700px) {
   .nav-collapsed .sidebar { padding: 0 16px; width: auto; }
   .nav-collapsed .main-panel { margin-left: 0; }
-  .nav-collapsed .brand-name { display: inline; }
+  .nav-collapsed .sidebar .brand-name { display: inline; }
 }
 
 /* Issue titles wrap instead of being cut off. The textarea and an invisible copy of its text
@@ -984,3 +984,172 @@ a.stat-card:hover .stat-go, a.stat-card:focus-visible .stat-go { opacity: 1; tra
 
 /* Several testers in the details drawer stack on the right. */
 .info-card dd.people { align-items: flex-end; display: flex; flex-direction: column; gap: 6px; white-space: normal; }
+
+/* ---------------------------------------------------------------------------
+   KPI report: filters on screen, then the report as A4 sheets. "Download PDF" prints the sheets
+   only (the browser's "Save as PDF"). @page has no margin, so the browser adds no header or footer,
+   and each sheet's padding is repeated on every printed page. */
+.kpi-page { margin: 0 auto; max-width: 1100px; }
+.kpi-toolbar .primary-button { border: 0; cursor: pointer; }
+.kpi-toolbar .primary-button:disabled { cursor: default; opacity: .55; }
+.kpi-button-icon { fill: none; height: 16px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; width: 16px; }
+.kpi-filters { background: #fff; border: 1px solid var(--border); border-radius: 12px; display: grid; gap: 14px; padding: 14px 16px; }
+.kpi-filter-row { align-items: flex-end; display: flex; flex-wrap: wrap; gap: 14px; }
+.kpi-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.kpi-presets button { background: #fff; border: 1px solid #d5d8de; border-radius: 999px; color: #343a45; cursor: pointer; font-size: 12.5px; font-weight: 600; min-height: 34px; padding: 0 13px; }
+.kpi-presets button:hover { border-color: #aeb3bc; }
+.kpi-presets button.active { background: var(--accent-soft); border-color: #f2c4c6; color: #a8121a; }
+.kpi-field { display: grid; gap: 5px; min-width: 0; }
+.kpi-field > span { color: #5f6673; font-size: 11.5px; font-weight: 600; }
+.kpi-date input { background: #fff; border: 1px solid #d5d8de; border-radius: 9px; color: #1f2329; font-size: 13px; min-height: 42px; padding: 0 10px; }
+.kpi-pick { flex: 1 1 200px; min-width: 180px; }
+.kpi-pick.wide { flex: 2 1 320px; }
+.kpi-empty { background: #fff; border: 1px dashed #d5d8de; border-radius: 12px; color: #5f6673; padding: 34px 20px; text-align: center; }
+.kpi-empty strong { color: #1f2329; display: block; font: 700 15px var(--font-display); margin-bottom: 4px; }
+.kpi-empty p { font-size: 13px; margin: 0; }
+.kpi-print-hint { color: var(--muted); font-size: 12px; margin: 10px 2px 18px; }
+.kpi-report { display: grid; gap: 22px; justify-content: safe center; overflow-x: auto; padding-bottom: 4px; transition: opacity .15s; }
+.kpi-report.is-loading { opacity: .55; }
+
+/* The sheet is A4 on screen as well, so what you see is what the PDF holds. */
+.kpi-sheet {
+  -webkit-box-decoration-break: clone;
+  background: #fff;
+  border-top: 5px solid var(--accent);
+  box-decoration-break: clone;
+  box-shadow: 0 1px 2px #1f23290f, 0 8px 24px #1f23290d;
+  color: #1f2329;
+  font-size: 10.5px;
+  line-height: 1.45;
+  min-height: 296mm;
+  padding: 13mm 13mm 14mm;
+  width: 210mm;
+}
+.kpi-eyebrow { color: #a8121a; font-size: 9.5px; font-weight: 700; letter-spacing: .9px; margin: 0 0 4px; text-transform: uppercase; }
+.kpi-page-header { align-items: flex-start; border-bottom: 1px solid var(--border); display: flex; gap: 16px; justify-content: space-between; margin-bottom: 14px; padding-bottom: 12px; }
+.kpi-page-header h2 { font: 700 21px/1.2 var(--font-display); letter-spacing: -.4px; margin: 0; }
+.kpi-page-header .brand-name { font-size: 17px; }
+.kpi-page-brand { display: grid; flex: 0 0 auto; gap: 6px; justify-items: end; }
+.kpi-page-brand > span { color: #898781; font-size: 8.5px; }
+.kpi-page-subtitle { color: #6b7280; font-size: 11.5px; margin: 3px 0 0; }
+
+.kpi-cover-head { align-items: center; display: flex; justify-content: space-between; }
+.kpi-cover-meta { color: #6b7280; display: grid; font-size: 10px; justify-items: end; }
+.kpi-cover-title { border-bottom: 1px solid var(--border); margin: 34px 0 18px; padding-bottom: 18px; }
+.kpi-cover-title h2 { font: 800 30px/1.15 var(--font-display); letter-spacing: -.8px; margin: 0; }
+
+.kpi-tiles { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 6px; }
+.kpi-tiles.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpi-tile { border: 1px solid var(--border); border-radius: 9px; display: grid; gap: 2px; padding: 9px 11px; }
+.kpi-tile-label { color: #5f6673; font-size: 9.5px; font-weight: 600; }
+.kpi-tile-value { font: 700 21px/1.15 var(--font-display); letter-spacing: -.4px; }
+.kpi-tile-note { color: #898781; font-size: 9px; }
+
+/* Chart cards: two per row, "wide" ones span the page. */
+.kpi-cards { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }
+.kpi-card { border: 1px solid var(--border); border-radius: 10px; min-width: 0; padding: 11px 13px 13px; }
+.kpi-card.wide { grid-column: 1 / -1; }
+.kpi-card .kpi-team-row { grid-template-columns: 96px minmax(0, 1fr); }
+.kpi-card h3 { font: 700 12.5px/1.3 var(--font-display); margin: 0; }
+.kpi-card-caption { color: #6b7280; font-size: 9.5px; margin: 2px 0 10px; }
+.kpi-lead { color: #343a45; font-size: 10.5px; margin: 0 0 10px; }
+.kpi-halves { display: grid; gap: 22px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kpi-time { align-items: end; display: grid; gap: 26px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+.kpi-big { display: flex; flex-direction: column; font: 800 26px/1.1 var(--font-display); letter-spacing: -.5px; margin: 0 0 12px; }
+.kpi-big span { color: #6b7280; font: 400 10px var(--font-ui); letter-spacing: 0; margin-top: 2px; }
+.kpi-more { color: #898781; font-size: 9.5px; font-style: italic; margin: 6px 0 0; }
+
+/* Donut with its legend beside it */
+.kpi-donut { align-items: center; display: flex; gap: 16px; }
+.kpi-donut svg { flex: 0 0 auto; }
+.kpi-donut-value { fill: #1f2329; font: 800 20px var(--font-display); }
+.kpi-donut-label { fill: #6b7280; font-size: 9px; }
+.kpi-donut-legend { display: grid; flex: 1; gap: 5px; list-style: none; margin: 0; min-width: 0; padding: 0; }
+.kpi-donut-legend li { align-items: center; display: grid; gap: 7px; grid-template-columns: 12px minmax(0, 1fr) auto 34px; }
+.kpi-donut-legend .kpi-swatch { height: 10px; width: 10px; }
+.kpi-donut-name { color: #343a45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi-donut-legend strong { font-variant-numeric: tabular-nums; }
+.kpi-donut-legend em { color: #898781; font-style: normal; font-variant-numeric: tabular-nums; text-align: right; }
+.kpi-none { color: #898781; font-style: italic; margin: 0; }
+.kpi-none.big { font-size: 13px; margin-top: 30px; text-align: center; }
+
+.kpi-legend { color: #52514e; display: flex; flex-wrap: wrap; font-size: 9.5px; gap: 4px 14px; list-style: none; margin: 0 0 8px; padding: 0; }
+.kpi-legend.compact { margin: 8px 0 0; }
+.kpi-legend li { align-items: center; display: inline-flex; gap: 5px; }
+.kpi-legend strong { color: #1f2329; }
+.kpi-key { align-items: center; border-radius: 3px; color: #fff; display: inline-flex; font-size: 8.5px; font-weight: 800; height: 12px; justify-content: center; width: 12px; }
+.kpi-key.bar { border-radius: 2px; height: 8px; width: 14px; }
+
+/* Stacked delivery bars; segments are separated by a 2px gap of the page colour. */
+.kpi-team-bars { display: grid; gap: 7px; }
+.kpi-team-row { align-items: center; display: grid; gap: 10px; grid-template-columns: 150px minmax(0, 1fr); }
+.kpi-row-label { align-items: center; color: #343a45; display: flex; gap: 6px; min-width: 0; }
+.kpi-row-label > span:last-child, .kpi-team-row > .kpi-row-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi-team-row > .kpi-row-label { display: block; }
+.kpi-stack-track { align-items: center; display: flex; gap: 8px; min-width: 0; padding-right: 30px; }
+.kpi-stack, .kpi-split { display: flex; gap: 2px; height: 18px; }
+.kpi-split { height: 22px; }
+.kpi-stack-total { font-size: 11px; font-variant-numeric: tabular-nums; }
+.kpi-seg { align-items: center; display: flex; justify-content: center; min-width: 3px; }
+.kpi-stack .kpi-seg:last-child, .kpi-split .kpi-seg:last-child { border-radius: 0 4px 4px 0; }
+.kpi-seg > span { color: #fff; font-size: 9.5px; font-weight: 700; }
+.kpi-seg > span.dark { color: #0b0b0b; }
+
+/* Coloured bars (one colour per row) and distribution columns */
+.kpi-bars { align-content: start; display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.kpi-bars li { align-items: center; display: grid; gap: 8px; grid-template-columns: 96px minmax(0, 1fr) 52px; }
+.kpi-swatch { border-radius: 3px; flex: 0 0 auto; height: 9px; width: 9px; }
+.kpi-bar-track { display: block; min-width: 0; }
+.kpi-bar { border-radius: 0 4px 4px 0; display: block; height: 12px; min-width: 3px; }
+.kpi-bar-value { color: #343a45; font-size: 9.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi-columns-chart { align-items: end; border-bottom: 1px solid #c3c2b7; display: grid; gap: 8px; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); height: 110px; padding-top: 4px; }
+.kpi-column { align-items: center; display: flex; flex-direction: column; height: 100%; justify-content: flex-end; position: relative; }
+.kpi-column-bar { background: #2a78d6; border-radius: 4px 4px 0 0; display: block; min-height: 2px; width: min(24px, 70%); }
+.kpi-column-value { font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 700; margin-bottom: 3px; }
+.kpi-column-label { bottom: -17px; color: #6b7280; font-size: 8.5px; position: absolute; white-space: nowrap; }
+.kpi-time .kpi-columns-chart { margin-bottom: 18px; }
+.kpi-split.thin { height: 14px; }
+
+/* Probable date change reasons */
+.kpi-reasons { display: grid; gap: 7px; list-style: none; margin: 0; padding: 0; }
+.kpi-reasons li { border-left: 3px solid #e1e4e9; display: grid; gap: 1px; padding-left: 8px; }
+.kpi-reason-meta { color: #6b7280; font-size: 8.5px; font-weight: 600; }
+.kpi-reason-text { color: #1f2329; font-size: 10px; }
+
+
+/* Tables */
+.kpi-table { border-collapse: collapse; font-size: 9.5px; width: 100%; }
+.kpi-table th { border-bottom: 1px solid #d5d8de; color: #5f6673; font-size: 8.5px; font-weight: 700; letter-spacing: .3px; padding: 5px 6px; text-align: left; text-transform: uppercase; vertical-align: bottom; }
+.kpi-table td { border-bottom: 1px solid #eff1f4; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; padding: 5px 6px; vertical-align: top; }
+.kpi-table .nowrap { overflow-wrap: normal; white-space: nowrap; }
+.kpi-team-table td:not(:first-child), .kpi-team-table th:not(:first-child) { text-align: right; }
+.kpi-team-table td:first-child strong { white-space: nowrap; }
+.kpi-role, .kpi-sub, .kpi-task-pos { color: #898781; display: block; font-size: 8.5px; }
+.kpi-task-cell { min-width: 150px; }
+.kpi-task-number { color: #898781; font-weight: 600; }
+.kpi-result { font-weight: 600; white-space: nowrap; }
+.kpi-result.ok { color: #006300; }
+.kpi-result.late { color: #b42318; }
+.kpi-result.none { color: #6b7280; }
+.kpi-reason { color: #343a45; }
+
+.kpi-definitions dl { display: grid; gap: 10px; margin: 0; }
+.kpi-definitions dl > div { display: grid; gap: 16px; grid-template-columns: 190px minmax(0, 1fr); }
+.kpi-definitions dt { font-weight: 700; }
+.kpi-definitions dd { color: #343a45; margin: 0; }
+.kpi-footnote { border-top: 1px solid var(--border); color: #6b7280; margin-top: 18px; padding-top: 12px; }
+
+@page { margin: 0; size: A4; }
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  :root, body, .workspace, .main-panel, .content { background: #fff !important; margin: 0 !important; min-height: 0 !important; padding: 0 !important; }
+  .sidebar, .topbar, .kpi-toolbar, .kpi-filters, .kpi-print-hint, .load-error, .toast { display: none !important; }
+  .kpi-page { max-width: none; }
+  .kpi-report { display: block; opacity: 1; overflow: visible; }
+  .kpi-sheet { box-shadow: none; break-after: page; }
+  .kpi-sheet:last-child { break-after: auto; }
+  .kpi-page-header { break-after: avoid; }
+  .kpi-card, .kpi-tiles { break-inside: avoid; }
+  .kpi-tile, .kpi-table tr, .kpi-bars li, .kpi-team-row, .kpi-definitions dl > div { break-inside: avoid; }
+  .kpi-table thead { display: table-header-group; }
+}

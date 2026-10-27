@@ -232,6 +232,10 @@ model TaskHistory {
   field     String
   oldValue  String?
   newValue  String?
+  // Ids behind the display values where names can repeat (user ids for "Assignee"), so the
+  // KPI report credits the right person. Empty on rows written before they were recorded.
+  oldRef    String?
+  newRef    String?
   createdAt DateTime @default(now())
 
   @@index([taskId, createdAt])

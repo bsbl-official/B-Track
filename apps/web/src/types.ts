@@ -11,6 +11,7 @@ export const PERMISSIONS = {
   taskSetStatus: "task.set_status",
   commentCreate: "comment.create",
   dashboardViewAll: "dashboard.view_all",
+  kpiView: "kpi.view",
   poManage: "po.manage",
   accessManage: "access.manage",
 } as const;
@@ -215,3 +216,64 @@ export type AccessUser = {
   roleId: string;
 };
 export type AccessData = { permissions: PermissionInfo[]; roles: AccessRole[]; users: AccessUser[] };
+
+// Developer KPI report (GET /api/kpi). Instants are ISO timestamps; plain dates are "YYYY-MM-DD".
+export type KpiTask = {
+  id: string;
+  number: number;
+  title: string;
+  pos: Colored[];
+  priority: string | null;
+  type: string | null;
+};
+export type KpiCompletedTask = KpiTask & {
+  assignedAt: string;
+  startedAt: string | null;
+  testingAt: string | null;
+  completedDate: string;
+  firstProbableDate: string | null;
+  finalProbableDate: string | null;
+  // Completed date minus the first probable date: 0 or less is on time; null without a probable date.
+  daysLate: number | null;
+  daysToComplete: number;
+  timesFailedTesting: number;
+  stages: Array<{ status: string; from: string; to: string }>;
+};
+export type KpiPerson = {
+  person: { id: string; name: string; role: string; isActive: boolean };
+  summary: {
+    handled: number;
+    completed: number;
+    onTime: number;
+    late: number;
+    noDate: number;
+    onTimeRate: number | null;
+    averageDaysLate: number | null;
+    medianDaysToComplete: number | null;
+    dateChanges: number;
+    daysPushedBack: number;
+    failedTesting: number;
+    reopened: number;
+    blockedDays: number;
+    blockedTasks: number;
+  };
+  completed: KpiCompletedTask[];
+  dateChanges: Array<KpiTask & { at: string; from: string; to: string | null; days: number | null; by: string; reason: string | null }>;
+  failedTesting: Array<KpiTask & { at: string; by: string }>;
+  reopened: Array<KpiTask & { at: string; by: string; completedDate: string | null }>;
+  blocked: Array<KpiTask & { from: string; to: string | null; days: number }>;
+  priorityMix: Array<{ name: string; handled: number; completed: number }>;
+  typeMix: Array<{ name: string; handled: number; completed: number }>;
+  poShare: Array<Colored & { handled: number; completed: number; share: number }>;
+};
+export type KpiReport = {
+  from: string;
+  to: string;
+  generatedAt: string;
+  generatedBy: string;
+  excludedImported: number;
+  statuses: Array<{ name: string; color: string }>;
+  priorities: Array<{ name: string; color: string }>;
+  types: Array<{ name: string; color: string }>;
+  people: KpiPerson[];
+};

@@ -9,6 +9,7 @@ import { accessRouter } from "./routes/access.js";
 import { authRouter } from "./routes/auth.js";
 import { clientsRouter } from "./routes/clients.js";
 import { dashboardRouter } from "./routes/dashboard.js";
+import { kpiRouter } from "./routes/kpi.js";
 import { metaRouter } from "./routes/meta.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { tasksRouter } from "./routes/tasks.js";
@@ -29,6 +30,7 @@ app.get("/api/health", (_request, response) => {
 app.use("/api/auth", authRouter);
 app.use("/api/meta", requireAuth, metaRouter);
 app.use("/api/dashboard", requireAuth, dashboardRouter);
+app.use("/api/kpi", requireAuth, kpiRouter);
 app.use("/api/tasks", requireAuth, tasksRouter);
 app.use("/api/clients", requireAuth, clientsRouter);
 app.use("/api/notifications", requireAuth, notificationsRouter);

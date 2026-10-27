@@ -246,7 +246,7 @@ const updateTaskSchema = z
   .partial()
   .strict();
 
-type Change = { field: string; oldValue: string | null; newValue: string | null };
+type Change = { field: string; oldValue: string | null; newValue: string | null; oldRef?: string | null; newRef?: string | null };
 
 // "12 Oct 2026", as the web app shows dates.
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
@@ -307,7 +307,7 @@ tasksRouter.patch(
       if (access.assign === "none") throw new HttpError(403, "You can't change who this task is assigned to");
       const assignee = input.assigneeId ? await findAssignee(actor, access.assign, input.assigneeId) : null;
       data.assigneeId = assignee?.id ?? null;
-      record("Assignee", task.assignee?.name ?? null, assignee?.name ?? null);
+      changes.push({ field: "Assignee", oldValue: task.assignee?.name ?? null, newValue: assignee?.name ?? null, oldRef: task.assigneeId, newRef: assignee?.id ?? null });
     }
     if (input.testerIds !== undefined) {
       const testers = await findTesters(input.testerIds, task.testers.map((tester) => tester.id));

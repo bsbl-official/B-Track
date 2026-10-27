@@ -8,6 +8,7 @@ export const PERMISSIONS = {
   taskSetStatus: "task.set_status",
   commentCreate: "comment.create",
   dashboardViewAll: "dashboard.view_all",
+  kpiView: "kpi.view",
   poManage: "po.manage",
   accessManage: "access.manage",
 } as const;
@@ -24,6 +25,7 @@ export const PERMISSION_CATALOGUE: Array<{ key: Permission; group: string; label
   { key: PERMISSIONS.taskSetStatus, group: "Tasks", label: "Change status", description: "Move tasks through the workflow (their own, assigned, or all with “Edit & delete any task”)." },
   { key: PERMISSIONS.commentCreate, group: "Tasks", label: "Comment", description: "Comment on tasks they can see." },
   { key: PERMISSIONS.dashboardViewAll, group: "Dashboard", label: "See team-wide dashboard", description: "See metrics for every task across all POs. Without this, the dashboard shows only their own numbers: tasks assigned to them, overdue, due soon and completed." },
+  { key: PERMISSIONS.kpiView, group: "Reports", label: "See KPI reports", description: "Open the KPI report for every developer: delivery against probable dates, date changes, failed tests, reopened and blocked tasks, and the PO mix. Includes downloading it as a PDF." },
   { key: PERMISSIONS.poManage, group: "Administration", label: "Manage POs", description: "Create, rename and archive POs." },
   { key: PERMISSIONS.accessManage, group: "Administration", label: "Manage access", description: "Open this page: change roles, permissions and users." },
 ];

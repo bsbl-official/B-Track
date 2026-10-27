@@ -31,6 +31,7 @@ export function PoPicker({
   label = "PO",
   placeholder,
   required = true,
+  bulk = false,
 }: {
   options: Option[];
   value: string[];
@@ -42,6 +43,8 @@ export function PoPicker({
   placeholder?: string;
   // At least one must stay selected (POs). Testers may be cleared to none.
   required?: boolean;
+  // Offer "Select all" / "Clear" in the footer (long lists such as people on the KPI report).
+  bulk?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -144,6 +147,15 @@ export function PoPicker({
                 }}
               >
                 ＋ New PO
+              </button>
+            )}
+            {bulk && (
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setDraft(draft.length === options.length ? [] : options.map((option) => option.id))}
+              >
+                {draft.length === options.length ? "Clear" : "Select all"}
               </button>
             )}
             <button type="button" className="small-primary" onClick={close} disabled={draft.length === 0 && required}>Done</button>

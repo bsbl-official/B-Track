@@ -7,6 +7,7 @@ import type {
   UserStatus,
   Comment,
   Dashboard,
+  KpiReport,
   ManagedClient,
   Meta,
   NewTask,
@@ -70,6 +71,8 @@ export const api = {
 
   meta: () => request<Meta>("/meta"),
   dashboard: () => request<Dashboard>("/dashboard"),
+  kpi: (query: { from: string; to: string; people: string[]; pos: string[] }) =>
+    request<KpiReport>(`/kpi?${new URLSearchParams({ from: query.from, to: query.to, people: query.people.join(","), pos: query.pos.join(",") })}`),
 
   listTasks: () => request<Task[]>("/tasks"),
   getTask: (id: string) => request<TaskDetail>(`/tasks/${id}`),
