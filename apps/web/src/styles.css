@@ -346,6 +346,8 @@ h1 { color: #1f2329; font: 700 24px var(--font-display); letter-spacing: -.6px; 
 .th-label { display: block; padding: 10px; }
 .cell-select.centered { text-align: center; text-align-last: center; }
 .col-gap .gap-badge { margin-left: 0; min-width: 34px; text-align: center; }
+/* Daily tasks: shown in place of a probable date. */
+.routine-tag { background: #e6f4f2; border-radius: 10px; color: #0f766e; display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 9px; }
 .date-alert { background: #fdecea !important; border-color: #f6c6c1 !important; color: #b42318 !important; font-weight: 600; }
 .date-today { background: #e7f6ec !important; border-color: #b7e2c4 !important; color: #1e7a3c !important; font-weight: 600; }
 .cell-text.date-alert, .cell-text.date-today { border-radius: 6px; padding: 5px 6px; }

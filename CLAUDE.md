@@ -84,7 +84,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - `@db.Date` dates: `reportedDate` ("Date" / assigned on), `expectedDeliveryDate` ("Probable date", the developer's estimate) and `deliveredDate` ("Completed").
 - **Client:** a PO. Has `name`, `color`, `isActive`. The code and DB say `Client`; the UI says "PO" / "Partner Organisation".
 - **Configurable data:**
-  - `TaskType`: Feature and Bug.
+  - `TaskType`: Feature, Bug and **Daily** (`isRoutine`, migration `20261031090000_daily_task_type`) for routine work done every day.
   - `Priority`: named "1" to "4" (1 most urgent), with a `rank`.
   - `Status`: New, In Progress, Testing, Completed and Blocked (added for the Oct'26 sheet), with `isInitial` / `isClosed`.
   - `StatusTransition`: the allowed moves.
@@ -123,6 +123,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - Every "Tested by" person being added must be an active user whose role has `canTest` (people already on the task may stay). The API takes `testerIds: string[]` on create and PATCH; history records the names joined, e.g. "A, B".
   - New tasks need at least one active PO. The status must be the initial one or one step from it.
   - Without `task.set_priority`, priority is left null.
+- **Daily (routine) tasks** (`type.isRoutine`): no probable date, so no gap days, never overdue / due today, no deadline reminders. The API drops a date sent on create and refuses one on PATCH; switching a task to Daily clears its date without asking for a reason. The sheet shows a "Daily" tag in Probable date. The KPI report leaves them out of completions (time to finish, on time) and date changes.
 - **Notifications:** assigning a task creates a notification for the assignee.
 - **KPI report** (`lib/kpi.ts`; no scores, by the owner's choice): replays each task's Status, Assignee and Probable date history into timelines and credits events to whoever held the task at the time.
   - Completed tasks (Completed date in the period, still closed) go to the assignee at the last completion, timed from when it was assigned to them.

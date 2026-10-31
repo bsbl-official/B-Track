@@ -461,7 +461,7 @@ function compareTasks(a: Task, b: Task, key: SortKey, statusById: Map<string, { 
 // Sheet rule: today minus probable date, blank once completed.
 function GapCell({ task }: { task: Task }) {
   const gap = task.gapDays;
-  if (gap === null) return <span className="gap-badge none">—</span>;
+  if (gap === null) return <span className="gap-badge none" title={task.type?.isRoutine ? "Daily task: no gap days" : undefined}>—</span>;
   const tone = gap > 0 ? "late" : gap >= -DUE_SOON_DAYS ? "soon" : "left";
   const hint = gap > 0 ? `${gap} day${gap === 1 ? "" : "s"} past the probable date` : gap === 0 ? "Due today" : `${-gap} day${gap === -1 ? "" : "s"} to spare`;
   return <span className={`gap-badge ${tone}`} title={hint}>{gap}</span>;
@@ -689,14 +689,19 @@ function TaskRow({
         )}
       </td>
       <td>
-        <DateCell
-          label="Probable date"
-          value={task.expectedDeliveryDate}
-          tone={isOverdue(task) ? "overdue" : isDueToday(task) ? "today" : null}
-          disabled={!editable}
-          // Setting the first date saves straight away; moving one asks why first.
-          onChange={(expectedDeliveryDate) => (task.expectedDeliveryDate ? onReschedule(task, expectedDeliveryDate) : update({ expectedDeliveryDate }))}
-        />
+        {task.type?.isRoutine ? (
+          // Daily tasks have no probable date (and so no gap days).
+          <span className="routine-tag" title="Daily task: no probable date">Daily</span>
+        ) : (
+          <DateCell
+            label="Probable date"
+            value={task.expectedDeliveryDate}
+            tone={isOverdue(task) ? "overdue" : isDueToday(task) ? "today" : null}
+            disabled={!editable}
+            // Setting the first date saves straight away; moving one asks why first.
+            onChange={(expectedDeliveryDate) => (task.expectedDeliveryDate ? onReschedule(task, expectedDeliveryDate) : update({ expectedDeliveryDate }))}
+          />
+        )}
       </td>
       <td className="col-gap"><GapCell task={task} /></td>
       <td>

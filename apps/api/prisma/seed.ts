@@ -91,6 +91,8 @@ const transitions: Array<[string, string]> = [
 const types = [
   { name: "Feature", color: "#2563eb", sortOrder: 1 },
   { name: "Bug", color: "#dc2626", sortOrder: 2 },
+  // Routine work done every day: no probable date or gap days.
+  { name: "Daily", color: "#0f766e", sortOrder: 3, isRoutine: true },
 ];
 
 // 1 is the most urgent, as in the sheet.

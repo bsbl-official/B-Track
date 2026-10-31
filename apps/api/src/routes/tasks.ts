@@ -14,7 +14,7 @@ tasksRouter.use("/:taskId/attachments", attachmentsRouter);
 
 export const taskInclude = {
   clients: { select: { id: true, name: true, color: true }, orderBy: { name: "asc" } },
-  type: { select: { id: true, name: true, color: true } },
+  type: { select: { id: true, name: true, color: true, isRoutine: true } },
   priority: { select: { id: true, name: true, color: true, rank: true } },
   status: { select: { id: true, name: true, color: true, isClosed: true } },
   reporter: { select: { id: true, name: true } },
@@ -116,6 +116,7 @@ function assignmentNotice(actor: Actor, assigneeId: string | null, task: { id: s
   };
 }
 
+
 tasksRouter.get(
   "/",
   asyncHandler(async (request, response) => {
@@ -192,7 +193,8 @@ tasksRouter.post(
     }
 
     const reportedDate = input.reportedDate ? parseDateOnly(input.reportedDate) : today();
-    const expectedDeliveryDate = input.expectedDeliveryDate ? parseDateOnly(input.expectedDeliveryDate) : null;
+    // Daily (routine) tasks have no probable date.
+    const expectedDeliveryDate = input.expectedDeliveryDate && !type?.isRoutine ? parseDateOnly(input.expectedDeliveryDate) : null;
     assertDateOrder(reportedDate, expectedDeliveryDate);
 
     const task = await prisma.$transaction(async (transaction) => {
@@ -293,11 +295,14 @@ tasksRouter.patch(
         record("PO", poNames(task.clients), poNames(clients));
       }
     }
+    let isRoutine = task.type?.isRoutine ?? false;
     if (input.typeId !== undefined && input.typeId !== task.typeId) {
       const type = input.typeId ? await findType(input.typeId) : null;
       data.typeId = type?.id ?? null;
       record("Type", task.type?.name ?? null, type?.name ?? null);
+      isRoutine = type?.isRoutine ?? false;
     }
+    const becameRoutine = isRoutine && !task.type?.isRoutine;
     if (input.priorityId !== undefined && input.priorityId !== task.priorityId) {
       const priority = input.priorityId ? await findPriority(input.priorityId) : null;
       data.priorityId = priority?.id ?? null;
@@ -348,18 +353,22 @@ tasksRouter.patch(
       data.reportedDate = reportedDate;
       record("Date", formatDateOnly(task.reportedDate), formatDateOnly(reportedDate));
     }
-    const expectedDeliveryDate =
-      input.expectedDeliveryDate === undefined
+    if (isRoutine && input.expectedDeliveryDate) throw new HttpError(400, "Daily tasks don't have a probable date");
+    // Daily (routine) tasks have none, so making a task daily clears its probable date.
+    const expectedDeliveryDate = isRoutine
+      ? null
+      : input.expectedDeliveryDate === undefined
         ? task.expectedDeliveryDate
         : input.expectedDeliveryDate
           ? parseDateOnly(input.expectedDeliveryDate)
           : null;
-    // Moving (or clearing) a probable date that was already set needs a reason; the first one doesn't.
+    // Moving (or clearing) a probable date that was already set needs a reason; the first one doesn't,
+    // and neither does clearing it because the task became daily.
     let reason: string | null = null;
     if (formatDateOnly(expectedDeliveryDate) !== formatDateOnly(task.expectedDeliveryDate)) {
       const from = formatDateOnly(task.expectedDeliveryDate);
       const to = formatDateOnly(expectedDeliveryDate);
-      if (from) {
+      if (from && !becameRoutine) {
         if (!input.comment) throw new HttpError(400, "Add a comment explaining why the probable date is changing");
         reason = `Probable date changed from ${readableDate(task.expectedDeliveryDate)} to ${readableDate(expectedDeliveryDate)}: ${input.comment}`;
       }

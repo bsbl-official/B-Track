@@ -53,7 +53,8 @@ export type Status = Colored & {
   nextStatusIds: string[];
 };
 export type Priority = Colored & { rank: number };
-export type TaskType = Colored & { sortOrder: number };
+// isRoutine: daily work ("Daily") with no probable date or gap days.
+export type TaskType = Colored & { sortOrder: number; isRoutine: boolean };
 export type MetaUser = Named & { roleName: string; isAssignable: boolean; canTest: boolean };
 
 export type Meta = {
@@ -88,7 +89,7 @@ export type Task = {
   assigneeId: string | null;
   reporterId: string;
   clients: Colored[];
-  type: Colored | null;
+  type: (Colored & { isRoutine: boolean }) | null;
   priority: Priority | null;
   status: Colored & { isClosed: boolean };
   reporter: Named;

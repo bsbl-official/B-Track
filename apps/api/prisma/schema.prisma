@@ -42,7 +42,7 @@ model User {
   passwordHash       String?
   // Set when an admin resets the password; the person must choose a new one after signing in.
   mustChangePassword Boolean    @default(false)
-  googleId          String?    @unique
+  googleId           String?    @unique
   avatarUrl          String?
   status             UserStatus @default(APPROVED)
   // Deactivated users can't sign in. Separate from status so history is kept.
@@ -50,8 +50,8 @@ model User {
   roleId             String
   role               Role       @relation(fields: [roleId], references: [id])
   // Per-person adjustments on top of the role's permissions.
-  grantedPermissions String[] @default([])
-  revokedPermissions String[] @default([])
+  grantedPermissions String[]   @default([])
+  revokedPermissions String[]   @default([])
   lastLoginAt        DateTime?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
@@ -80,20 +80,20 @@ model Session {
 }
 
 model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
-  actorId   String?
-  actor     User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
-  taskId    String?
-  task      Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actor       User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  taskId      String?
+  task        Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   // In-app page to open when there's no task, e.g. "access?tab=requests".
-  link      String?
-  message   String
+  link        String?
+  message     String
   // Set on automatic reminders (e.g. "overdue:<taskId>:<probable date>") so each is sent once.
   reminderKey String?
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
 
   @@unique([userId, reminderKey])
   @@index([userId, createdAt])
@@ -110,12 +110,14 @@ model Client {
   createdAt DateTime @default(now())
 }
 
-// Feature / Bug, configurable.
+// Feature / Bug / Daily, configurable.
 model TaskType {
-  id        String @id @default(cuid())
-  name      String @unique
+  id        String  @id @default(cuid())
+  name      String  @unique
   color     String
-  sortOrder Int    @default(0)
+  sortOrder Int     @default(0)
+  // Routine work done every day ("Daily"): no probable date, gap days or deadlines.
+  isRoutine Boolean @default(false)
   tasks     Task[]
 }
 

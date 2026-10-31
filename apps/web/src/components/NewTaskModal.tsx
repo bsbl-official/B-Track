@@ -70,6 +70,8 @@ export function NewTaskModal({
   const titleInput = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const change = (update: Partial<NewTask>) => setDraft((current) => ({ ...current, ...update }));
+  // Daily (routine) tasks have no probable date or gap days.
+  const isRoutine = meta.types.find((type) => type.id === draft.typeId)?.isRoutine ?? false;
 
   useEffect(() => {
     titleInput.current?.focus();
@@ -94,6 +96,7 @@ export function NewTaskModal({
         description: draft.description?.trim() || undefined,
         comment: draft.comment?.trim() || undefined,
         priorityId: canSetPriority ? draft.priorityId : null,
+        expectedDeliveryDate: isRoutine ? null : draft.expectedDeliveryDate,
       });
       // The task exists now; attach the evidence. A failed file doesn't undo the task.
       const failed: string[] = [];
@@ -276,16 +279,24 @@ export function NewTaskModal({
                 <input type="date" required value={draft.reportedDate} onChange={(event) => event.target.value && change({ reportedDate: event.target.value })} />
               </label>
 
-              <label>
-                <span>Probable date <em>developer's estimate</em></span>
-                <input
-                  type="date"
-                  min={draft.reportedDate}
-                  value={draft.expectedDeliveryDate ?? ""}
-                  onChange={(event) => change({ expectedDeliveryDate: event.target.value || null })}
-                />
-                <small className={`gap-preview ${gap.tone}`}>{gap.text}</small>
-              </label>
+              {isRoutine ? (
+                <div className="field">
+                  <span>Probable date</span>
+                  <input value="None: done every day" disabled />
+                  <small className="gap-preview none">Daily tasks have no gap days</small>
+                </div>
+              ) : (
+                <label>
+                  <span>Probable date <em>developer's estimate</em></span>
+                  <input
+                    type="date"
+                    min={draft.reportedDate}
+                    value={draft.expectedDeliveryDate ?? ""}
+                    onChange={(event) => change({ expectedDeliveryDate: event.target.value || null })}
+                  />
+                  <small className={`gap-preview ${gap.tone}`}>{gap.text}</small>
+                </label>
+              )}
             </div>
           </section>
 

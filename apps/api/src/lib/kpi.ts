@@ -132,7 +132,7 @@ export async function buildKpiReport(from: string, to: string, onlyPeople: strin
         deliveredDate: true,
         status: { select: { name: true, isClosed: true } },
         clients: { select: { id: true, name: true, color: true }, orderBy: { name: "asc" } },
-        type: { select: { name: true } },
+        type: { select: { name: true, isRoutine: true } },
         priority: { select: { name: true } },
         history: {
           where: { field: { in: ["Status", "Assignee", "Probable date"] } },
@@ -228,9 +228,12 @@ export async function buildKpiReport(from: string, to: string, onlyPeople: strin
       if (openAtSomePoint) markHandled(span.value, ref);
     }
 
+    // Daily (routine) tasks have no probable date, so they're left out of completions and date changes.
+    const isRoutine = task.type?.isRoutine ?? false;
+
     // 1, 2, 8. Completed in the period: credited to whoever held it when it was (last) completed.
     const deliveredKey = formatDateOnly(task.deliveredDate);
-    if (task.status.isClosed && deliveredKey && deliveredKey >= from && deliveredKey <= to) {
+    if (!isRoutine && task.status.isClosed && deliveredKey && deliveredKey >= from && deliveredKey <= to) {
       const lastCompletion = [...statusRows].reverse().find((row) => row.newValue && closedStatuses.has(row.newValue));
       const completedAt = lastCompletion?.at ?? created;
       const span = holders.find((item) => item.start <= completedAt && completedAt < item.end);
@@ -272,7 +275,7 @@ export async function buildKpiReport(from: string, to: string, onlyPeople: strin
 
     // 3. Probable date moves (the first date set doesn't count), with the reason given.
     for (const row of probableRows) {
-      if (!row.oldValue || !inPeriod(row.at)) continue;
+      if (isRoutine || !row.oldValue || !inPeriod(row.at)) continue;
       const userId = valueAt(holders, row.at);
       if (!userId) continue;
       const reason = task.comments

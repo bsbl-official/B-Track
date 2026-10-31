@@ -13,6 +13,14 @@ function Glyph({ name }: { name: string }) {
       </svg>
     );
   }
+  if (key.includes("daily")) {
+    return (
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M13.5 6.5A5.6 5.6 0 0 0 3 5.2M2.5 9.5A5.6 5.6 0 0 0 13 10.8" />
+        <path d="M3 2.4v2.8h2.8M13 13.6v-2.8h-2.8" />
+      </svg>
+    );
+  }
   if (key.includes("feature")) {
     return (
       <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -24,7 +32,7 @@ function Glyph({ name }: { name: string }) {
 }
 
 /**
- * Bug / Feature shown as an icon before the issue title. When editable, a transparent native
+ * Bug / Feature / Daily shown as an icon before the issue title. When editable, a transparent native
  * <select> sits on top, so a click opens the normal dropdown to change or clear it.
  */
 export function TypeIcon({

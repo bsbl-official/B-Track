@@ -532,6 +532,7 @@ function DefinitionsPage({ report, poLabel }: { report: KpiReport; poLabel: stri
       </dl>
       <p className="kpi-footnote">
         All figures come from each task's history in B-Track. Days are calendar days, weekends included.
+        Daily tasks have no probable date, so they aren't counted as completed tasks, in the time to finish or on time.
         {poLabel && ` Only tasks for these POs are counted: ${poLabel}; for a task that also has other POs, only these count toward the PO shares.`}
         {report.excludedImported > 0 && ` The ${report.excludedImported} tasks imported from the old Daily Troubleshoot sheet are left out, because they arrived without a history.`}
       </p>

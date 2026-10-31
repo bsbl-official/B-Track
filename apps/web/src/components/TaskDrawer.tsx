@@ -71,8 +71,11 @@ export function TaskDrawer({
     setDateReason("");
     setEditError(null);
   };
+  // Daily (routine) tasks have no probable date; making a task daily clears it, no reason needed.
+  const draftIsRoutine = draft !== null && (meta.types.find((type) => type.id === draft.typeId)?.isRoutine ?? false);
   // Moving a probable date that was already set needs a reason (saved as a comment).
-  const reschedulingDate = task !== null && draft !== null && task.expectedDeliveryDate !== null && draft.expectedDeliveryDate !== task.expectedDeliveryDate;
+  const reschedulingDate =
+    task !== null && draft !== null && !draftIsRoutine && task.expectedDeliveryDate !== null && draft.expectedDeliveryDate !== task.expectedDeliveryDate;
 
   const saveEdits = async (event: FormEvent) => {
     event.preventDefault();
@@ -86,7 +89,7 @@ export function TaskDrawer({
     if (title !== original.title) change.title = title;
     if (draft.typeId !== original.typeId) change.typeId = draft.typeId;
     if (draft.reportedDate !== original.reportedDate) change.reportedDate = draft.reportedDate;
-    if (draft.expectedDeliveryDate !== original.expectedDeliveryDate) change.expectedDeliveryDate = draft.expectedDeliveryDate;
+    if (!draftIsRoutine && draft.expectedDeliveryDate !== original.expectedDeliveryDate) change.expectedDeliveryDate = draft.expectedDeliveryDate;
     if (reschedulingDate) {
       if (!dateReason.trim()) return setEditError("Add a comment explaining why the probable date is changing.");
       change.comment = dateReason.trim();
@@ -254,10 +257,17 @@ export function TaskDrawer({
                 <span>Date <b className="req">*</b> <em>assigned on</em></span>
                 <input type="date" required value={draft.reportedDate} onChange={(event) => event.target.value && changeDraft({ reportedDate: event.target.value })} />
               </label>
-              <label>
-                <span>Probable date</span>
-                <input type="date" value={draft.expectedDeliveryDate ?? ""} onChange={(event) => changeDraft({ expectedDeliveryDate: event.target.value || null })} />
-              </label>
+              {draftIsRoutine ? (
+                <div className="field">
+                  <span>Probable date <em>none for daily tasks</em></span>
+                  <input value={task.expectedDeliveryDate ? "Will be cleared" : "None: done every day"} disabled />
+                </div>
+              ) : (
+                <label>
+                  <span>Probable date</span>
+                  <input type="date" value={draft.expectedDeliveryDate ?? ""} onChange={(event) => changeDraft({ expectedDeliveryDate: event.target.value || null })} />
+                </label>
+              )}
               {reschedulingDate && (
                 <label className="span-2">
                   <span>Why is the probable date changing? <b className="req">*</b> <em>saved as a comment</em></span>
@@ -289,7 +299,18 @@ export function TaskDrawer({
                 <h3>Dates</h3>
                 <dl>
                   <div><dt>Date</dt><dd>{formatDate(task.reportedDate)}</dd></div>
-                  <div><dt>Probable date</dt><dd>{task.expectedDeliveryDate ? formatDate(task.expectedDeliveryDate) : <span className="muted">Not set</span>}</dd></div>
+                  <div>
+                    <dt>Probable date</dt>
+                    <dd>
+                      {task.type?.isRoutine ? (
+                        <span className="routine-tag">Daily</span>
+                      ) : task.expectedDeliveryDate ? (
+                        formatDate(task.expectedDeliveryDate)
+                      ) : (
+                        <span className="muted">Not set</span>
+                      )}
+                    </dd>
+                  </div>
                   <div><dt>Gap days</dt><dd><GapBadge gap={task.gapDays} /></dd></div>
                   <div><dt>Completed</dt><dd>{task.deliveredDate ? formatDate(task.deliveredDate) : <span className="muted">Not yet</span>}</dd></div>
                 </dl>
