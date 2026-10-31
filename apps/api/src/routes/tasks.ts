@@ -116,6 +116,17 @@ function assignmentNotice(actor: Actor, assigneeId: string | null, task: { id: s
   };
 }
 
+// People newly added to "Tested by" hear about it, except whoever added themselves.
+function testerNotices(actor: Actor, testerIds: string[], task: { id: string; number: number; title: string }) {
+  return testerIds
+    .filter((id) => id !== actor.id)
+    .map((userId) => ({
+      userId,
+      actorId: actor.id,
+      taskId: task.id,
+      message: `${actor.name} asked you to test #${task.number} “${task.title}”`,
+    }));
+}
 
 tasksRouter.get(
   "/",
@@ -222,6 +233,7 @@ tasksRouter.post(
       }
       const notice = assignmentNotice(actor, created.assigneeId, created);
       if (notice) await transaction.notification.create({ data: notice });
+      await transaction.notification.createMany({ data: testerNotices(actor, testers.map((tester) => tester.id), created) });
       return transaction.task.findUniqueOrThrow({ where: { id: created.id }, include: taskInclude });
     });
 
@@ -390,6 +402,8 @@ tasksRouter.patch(
       if (reason) await transaction.comment.create({ data: { taskId: task.id, authorId: actor.id, body: reason } });
       const notice = saved.assigneeId !== task.assigneeId ? assignmentNotice(actor, saved.assigneeId, saved) : null;
       if (notice) await transaction.notification.create({ data: notice });
+      const addedTesters = saved.testers.filter((tester) => !task.testers.some((before) => before.id === tester.id));
+      await transaction.notification.createMany({ data: testerNotices(actor, addedTesters.map((tester) => tester.id), saved) });
       return saved;
     });
 

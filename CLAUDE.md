@@ -124,7 +124,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - New tasks need at least one active PO. The status must be the initial one or one step from it.
   - Without `task.set_priority`, priority is left null.
 - **Daily (routine) tasks** (`type.isRoutine`): no probable date, so no gap days, never overdue / due today, no deadline reminders. The API drops a date sent on create and refuses one on PATCH; switching a task to Daily clears its date without asking for a reason. The sheet shows a "Daily" tag in Probable date. The KPI report leaves them out of completions (time to finish, on time) and date changes.
-- **Notifications:** assigning a task creates a notification for the assignee.
+- **Notifications:** assigning a task notifies the assignee, and adding people to "Tested by" (on create or PATCH) notifies each newly added tester. Nobody is notified about their own change.
 - **KPI report** (`lib/kpi.ts`; no scores, by the owner's choice): replays each task's Status, Assignee and Probable date history into timelines and credits events to whoever held the task at the time.
   - Completed tasks (Completed date in the period, still closed) go to the assignee at the last completion, timed from when it was assigned to them.
   - On time compares the completed date with the **first** probable date while it was theirs (the date it had when they got it, or the first one they set).
