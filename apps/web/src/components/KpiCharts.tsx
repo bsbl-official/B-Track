@@ -165,11 +165,46 @@ export function TimeSplit({ parts }: { parts: Array<{ key: string; label: string
   );
 }
 
-export function Tile({ label, value, note, tone }: { label: string; value: string | number; note?: string; tone?: "good" | "bad" | "warn" }) {
+// Line icons for the summary tiles (16px grid, drawn with the tile's colour).
+const TILE_ICONS = {
+  completed: <><circle cx="8" cy="8" r="6.2" /><path d="m5.3 8.2 1.9 1.9 3.6-3.8" /></>,
+  time: <><circle cx="8" cy="8.6" r="5.6" /><path d="M8 5.6v3.2l2 1.3M6.3 1.6h3.4" /></>,
+  onTime: <><rect x="2.2" y="3" width="11.6" height="10.8" rx="2" /><path d="M2.2 6.4h11.6M5.4 1.6v2.6M10.6 1.6v2.6m-4.8 6 1.5 1.5 2.9-3" /></>,
+  failedTesting: <><path d="M6.2 1.8h3.6M6.8 1.8v4.3L3 12.7a1 1 0 0 0 .9 1.5h8.2a1 1 0 0 0 .9-1.5L9.2 6.1V1.8" /><path d="M4.6 10h6.8" /></>,
+  reopened: <><path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8" /><path d="M2.4 1.9v2.9h2.9" /></>,
+  late: <><path d="M4.2 1.8h7.6M4.2 14.2h7.6" /><path d="M5.2 1.8v1.6c0 2 5.6 2.6 5.6 4.6s-5.6 2.6-5.6 4.6v1.6M10.8 1.8v1.6c0 2-5.6 2.6-5.6 4.6s5.6 2.6 5.6 4.6v1.6" /></>,
+};
+
+export type TileTone = "brand" | "blue" | "good" | "warn" | "bad" | "neutral";
+
+/** A headline number: icon and label, the value, a note, and optionally a 0–100 meter. */
+export function Tile({
+  icon,
+  label,
+  value,
+  note,
+  tone = "neutral",
+  meter,
+}: {
+  icon: keyof typeof TILE_ICONS;
+  label: string;
+  value: string | number;
+  note?: string;
+  tone?: TileTone;
+  meter?: number | null;
+}) {
   return (
-    <div className={`kpi-tile ${tone ?? ""}`}>
-      <span className="kpi-tile-label">{label}</span>
+    <div className={`kpi-tile ${tone}`}>
+      <span className="kpi-tile-head">
+        <span className="kpi-tile-icon" aria-hidden="true"><svg viewBox="0 0 16 16">{TILE_ICONS[icon]}</svg></span>
+        <span className="kpi-tile-label">{label}</span>
+      </span>
       <strong className="kpi-tile-value">{value}</strong>
+      {meter !== undefined && (
+        <span className="kpi-tile-meter" aria-hidden="true">
+          <span style={{ width: `${Math.max(0, Math.min(100, meter ?? 0))}%` }} />
+        </span>
+      )}
       {note && <span className="kpi-tile-note">{note}</span>}
     </div>
   );

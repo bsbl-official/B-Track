@@ -1040,12 +1040,37 @@ a.stat-card:hover .stat-go, a.stat-card:focus-visible .stat-go { opacity: 1; tra
 .kpi-cover-title { border-bottom: 1px solid var(--border); margin: 34px 0 18px; padding-bottom: 18px; }
 .kpi-cover-title h2 { font: 800 30px/1.15 var(--font-display); letter-spacing: -.8px; margin: 0; }
 
-.kpi-tiles { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 6px; }
+/* Headline tiles: icon and label, a big number, an optional meter, a note. The tone colours the
+   icon, the top edge, the meter and a soft wash behind the number. */
+.kpi-tiles { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 8px; }
 .kpi-tiles.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.kpi-tile { border: 1px solid var(--border); border-radius: 9px; display: grid; gap: 2px; padding: 9px 11px; }
-.kpi-tile-label { color: #5f6673; font-size: 9.5px; font-weight: 600; }
-.kpi-tile-value { font: 700 21px/1.15 var(--font-display); letter-spacing: -.4px; }
-.kpi-tile-note { color: #898781; font-size: 9px; }
+.kpi-tile {
+  --tile: #5f6673;
+  --tile-soft: #f1f2f5;
+  align-content: start;
+  background: linear-gradient(165deg, var(--tile-soft) 0%, #fff 62%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+  overflow: hidden;
+  padding: 13px 13px 12px;
+  position: relative;
+}
+.kpi-tile::before { background: var(--tile); content: ""; height: 3px; inset: 0 0 auto; position: absolute; }
+.kpi-tile.brand { --tile: var(--accent); --tile-soft: #fcecec; }
+.kpi-tile.blue { --tile: #2563eb; --tile-soft: #eaf1fe; }
+.kpi-tile.good { --tile: #1e7a3c; --tile-soft: #e7f6ec; }
+.kpi-tile.warn { --tile: #b26a00; --tile-soft: #fff4e5; }
+.kpi-tile.bad { --tile: #b42318; --tile-soft: #fdecea; }
+.kpi-tile-head { align-items: center; display: flex; gap: 7px; min-width: 0; }
+.kpi-tile-icon { align-items: center; background: #fff; border: 1px solid color-mix(in srgb, var(--tile) 22%, transparent); border-radius: 7px; color: var(--tile); display: inline-flex; flex: 0 0 auto; height: 24px; justify-content: center; width: 24px; }
+.kpi-tile-icon svg { fill: none; height: 14px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; width: 14px; }
+.kpi-tile-label { color: #5f6673; font-size: 8.5px; font-weight: 700; letter-spacing: .5px; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.kpi-tile-value { color: #1f2329; font: 800 27px/1.05 var(--font-display); letter-spacing: -.6px; margin-top: 3px; }
+.kpi-tile-meter { background: #e9ebef; border-radius: 999px; display: block; height: 5px; overflow: hidden; }
+.kpi-tile-meter > span { background: var(--tile); border-radius: 999px; display: block; height: 100%; }
+.kpi-tile-note { color: #6b7280; font-size: 9px; }
 
 /* Chart cards: two per row, "wide" ones span the page. */
 .kpi-cards { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }

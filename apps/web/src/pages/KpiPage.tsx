@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
-import { ColorBars, Columns, DELIVERY, DeliveryLegend, Donut, formatDuration, Tile, TeamDeliveryChart, TimeSplit, type Slice } from "../components/KpiCharts";
+import { ColorBars, Columns, DELIVERY, DeliveryLegend, Donut, formatDuration, Tile, TeamDeliveryChart, TimeSplit, type Slice, type TileTone } from "../components/KpiCharts";
 import { Brand } from "../components/Logo";
 import { PoPicker } from "../components/PoPicker";
 import { errorMessage, formatDate } from "../format";
@@ -252,12 +252,53 @@ function perPo(tasks: KpiTask[], pos: string[]) {
 const deliverySlices = (summary: KpiPerson["summary"]): Slice[] =>
   DELIVERY.map((item) => ({ key: item.key, label: item.label, value: summary[item.key], color: item.color, icon: item.icon }));
 
+// Green when nothing went wrong, otherwise amber (or red for the worse ones).
+const countTone = (value: number, whenAny: TileTone): TileTone => (value === 0 ? "good" : whenAny);
+const rateTone = (rate: number | null): TileTone => (rate === null ? "neutral" : rate >= 80 ? "good" : rate >= 50 ? "warn" : "bad");
+
+// The six headline numbers at the top of a person's page and of the overview.
+function SummaryTiles({
+  completed,
+  handled,
+  handledNote,
+  averageHours,
+  onTime,
+  late,
+  averageDaysLate,
+  failedTesting,
+  reopened,
+}: {
+  completed: number;
+  handled: number;
+  handledNote: string;
+  averageHours: number | null;
+  onTime: number;
+  late: number;
+  averageDaysLate: number | null;
+  failedTesting: number;
+  reopened: number;
+}) {
+  const rate = onTime + late ? Math.round((onTime / (onTime + late)) * 100) : null;
+  return (
+    <div className="kpi-tiles six">
+      <Tile icon="completed" tone="good" label="Tasks completed" value={completed} meter={handled ? (completed / handled) * 100 : 0} note={`of ${handled} ${handledNote}`} />
+      <Tile icon="time" tone="blue" label="Average time to finish" value={averageHours === null ? "—" : formatDuration(averageHours)} note="from assigned to completed" />
+      <Tile icon="onTime" tone={rateTone(rate)} label="On time" value={rate === null ? "—" : `${rate}%`} meter={rate} note={`${onTime} of ${onTime + late} with a promised date`} />
+      <Tile icon="failedTesting" tone={countTone(failedTesting, "warn")} label="Failed testing" value={failedTesting} note={failedTesting ? "sent back from Testing" : "nothing sent back from Testing"} />
+      <Tile icon="reopened" tone={countTone(reopened, "warn")} label="Reopened" value={reopened} note={reopened ? "came back after Completed" : "nothing came back after Completed"} />
+      <Tile icon="late" tone={countTone(late, "bad")} label="Late tasks" value={late} note={averageDaysLate === null ? "none late" : `${averageDaysLate} days late on average`} />
+    </div>
+  );
+}
+
 // The first page when several people are chosen: their totals and a side-by-side comparison.
 function TeamPage({ report, poLabel, pos }: { report: KpiReport; poLabel: string | null; pos: string[] }) {
   const total = (key: keyof KpiPerson["summary"]) => report.people.reduce((sum, person) => sum + (person.summary[key] ?? 0), 0);
   const onTime = total("onTime");
   const late = total("late");
-  const rate = onTime + late ? Math.round((onTime / (onTime + late)) * 100) : null;
+  // Average days late over everyone's late tasks.
+  const lateDays = report.people.reduce((sum, { summary }) => sum + (summary.averageDaysLate ?? 0) * summary.late, 0);
+  const teamDaysLate = late ? Math.round((lateDays / late) * 10) / 10 : null;
   const allCompleted = report.people.flatMap((person) => person.completed);
   const teamAverage = average(allCompleted.map(hoursToFinish));
   const generated = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(report.generatedAt));
@@ -279,12 +320,17 @@ function TeamPage({ report, poLabel, pos }: { report: KpiReport; poLabel: string
         </p>
       </div>
 
-      <div className="kpi-tiles">
-        <Tile label="Tasks completed" value={total("completed")} note={`of ${total("handled")} handled`} />
-        <Tile label="Average time to finish" value={teamAverage === null ? "—" : formatDuration(teamAverage)} note="from assigned to completed" />
-        <Tile label="On time" value={rate === null ? "—" : `${rate}%`} note={`${onTime} of ${onTime + late} with a promised date`} />
-        <Tile label="Probable date changes" value={total("dateChanges")} note={`+${total("daysPushedBack")} days in total`} />
-      </div>
+      <SummaryTiles
+        completed={total("completed")}
+        handled={total("handled")}
+        handledNote="handled"
+        averageHours={teamAverage}
+        onTime={onTime}
+        late={late}
+        averageDaysLate={teamDaysLate}
+        failedTesting={total("failedTesting")}
+        reopened={total("reopened")}
+      />
 
       <div className="kpi-cards">
         <Card title="Completed tasks by PO" caption="Everyone in this report together.">
@@ -397,16 +443,17 @@ function PersonPage({ report, data, poLabel, pos }: { report: KpiReport; data: K
     <article className="kpi-sheet">
       <PageHeader report={report} title={person.name.toLocaleUpperCase()} subtitle={`${person.role}${person.isActive ? "" : " · inactive"} · ${poLabel ? `POs: ${poLabel}` : "all POs"}`} />
 
-      <div className="kpi-tiles">
-        <Tile label="Tasks completed" value={summary.completed} note={`of ${summary.handled} assigned to them`} />
-        <Tile label="Average time to finish" value={averageHours === null ? "—" : formatDuration(averageHours)} note="from assigned to completed" />
-        <Tile label="On time" value={numberOrDash(summary.onTimeRate, "%")} note={`${summary.onTime} of ${summary.onTime + summary.late} with a promised date`} />
-        <Tile label="Probable date changes" value={summary.dateChanges} note={`on ${plural(movedTasks.length, "task")}, +${summary.daysPushedBack} days`} />
-        <Tile label="Failed testing" value={summary.failedTesting} note="sent back from Testing" />
-        <Tile label="Reopened" value={summary.reopened} note="came back after Completed" />
-        <Tile label="Days blocked" value={summary.blockedDays} note={`on ${plural(summary.blockedTasks, "task")}`} />
-        <Tile label="Late tasks" value={summary.late} note={summary.averageDaysLate === null ? "none" : `${summary.averageDaysLate} days late on average`} />
-      </div>
+      <SummaryTiles
+        completed={summary.completed}
+        handled={summary.handled}
+        handledNote="assigned to them"
+        averageHours={averageHours}
+        onTime={summary.onTime}
+        late={summary.late}
+        averageDaysLate={summary.averageDaysLate}
+        failedTesting={summary.failedTesting}
+        reopened={summary.reopened}
+      />
 
       <div className="kpi-cards">
         <Card title="Completed tasks by PO" caption={pos.length ? "A task for several of the chosen POs counts toward each." : "A task for several POs counts toward each."}>
