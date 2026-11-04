@@ -86,14 +86,14 @@ export type Task = {
   typeId: string | null;
   priorityId: string | null;
   statusId: string;
-  assigneeId: string | null;
   reporterId: string;
   clients: Colored[];
   type: (Colored & { isRoutine: boolean }) | null;
   priority: Priority | null;
   status: Colored & { isClosed: boolean };
   reporter: Named;
-  assignee: Named | null;
+  // "Assigned dev": any number of people (none = unassigned).
+  assignees: Named[];
   // "Tested by": any number of people (none yet = empty).
   testers: Named[];
   reportedDate: string;
@@ -128,7 +128,7 @@ export type TaskUpdate = Partial<{
   typeId: string | null;
   priorityId: string | null;
   statusId: string;
-  assigneeId: string | null;
+  assigneeIds: string[];
   testerIds: string[];
   reportedDate: string;
   expectedDeliveryDate: string | null;
@@ -143,7 +143,7 @@ export type NewTask = {
   typeId: string | null;
   priorityId?: string | null;
   statusId?: string;
-  assigneeId: string | null;
+  assigneeIds: string[];
   testerIds: string[];
   reportedDate: string;
   expectedDeliveryDate: string | null;

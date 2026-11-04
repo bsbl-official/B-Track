@@ -18,7 +18,7 @@ export const taskInclude = {
   priority: { select: { id: true, name: true, color: true, rank: true } },
   status: { select: { id: true, name: true, color: true, isClosed: true } },
   reporter: { select: { id: true, name: true } },
-  assignee: { select: { id: true, name: true } },
+  assignees: { select: { id: true, name: true }, orderBy: { name: "asc" } },
   testers: { select: { id: true, name: true }, orderBy: { name: "asc" } },
   // The newest comment fills the sheet's Comments column.
   comments: {
@@ -80,15 +80,21 @@ async function findPriority(id: string) {
   return priority;
 }
 
-// Assignees must be active users whose role can take tasks. Without "assign to anyone",
-// the only allowed assignee is the actor.
-async function findAssignee(actor: Actor, assignRule: "anyone" | "self" | "none", id: string) {
-  if (assignRule === "none") throw new HttpError(403, "You can't change who this task is assigned to");
-  if (assignRule === "self" && id !== actor.id) throw new HttpError(403, "You can only assign tasks to yourself");
-  const user = await prisma.user.findUnique({ where: { id }, include: { role: true } });
-  if (!user || !user.isActive) throw new HttpError(400, "Unknown or inactive assignee");
-  if (!user.role.isAssignable) throw new HttpError(400, `${user.name}'s role can't be assigned tasks`);
-  return user;
+// Assignees being added must be active users whose role can take tasks; ones already on the task may
+// stay. Without "assign to anyone", the only person someone may add or remove is themselves.
+async function findAssignees(actor: Actor, assignRule: "anyone" | "self" | "none", ids: string[], alreadyLinked: string[] = []) {
+  const unique = [...new Set(ids)];
+  const changed = [...unique.filter((id) => !alreadyLinked.includes(id)), ...alreadyLinked.filter((id) => !unique.includes(id))];
+  if (changed.length > 0 && assignRule === "none") throw new HttpError(403, "You can't change who this task is assigned to");
+  if (assignRule === "self" && changed.some((id) => id !== actor.id)) throw new HttpError(403, "You can only add or remove yourself as assignee");
+  const users = await prisma.user.findMany({ where: { id: { in: unique } }, include: { role: true }, orderBy: { name: "asc" } });
+  if (users.length !== unique.length) throw new HttpError(400, "Unknown assignee");
+  for (const user of users) {
+    if (alreadyLinked.includes(user.id)) continue;
+    if (!user.isActive) throw new HttpError(400, `${user.name} is inactive`);
+    if (!user.role.isAssignable) throw new HttpError(400, `${user.name}'s role can't be assigned tasks`);
+  }
+  return users;
 }
 
 // Testers being added must be active users whose role can test; ones already on the task may stay.
@@ -105,15 +111,22 @@ async function findTesters(ids: string[], alreadyLinked: string[] = []) {
 }
 
 const names = (people: Array<{ name: string }>) => people.map((person) => person.name).sort().join(", ") || null;
+// Names can repeat, so assignee history also keeps the ids (in the same order as the names).
+const refs = (people: Array<{ id: string; name: string }>) =>
+  [...people].sort((a, b) => a.name.localeCompare(b.name)).map((person) => person.id).join(",") || null;
+const sameIds = (a: Array<{ id: string }>, b: Array<{ id: string }>) =>
+  a.length === b.length && a.every((person) => b.some((other) => other.id === person.id));
 
-function assignmentNotice(actor: Actor, assigneeId: string | null, task: { id: string; number: number; title: string }) {
-  if (!assigneeId || assigneeId === actor.id) return null;
-  return {
-    userId: assigneeId,
-    actorId: actor.id,
-    taskId: task.id,
-    message: `${actor.name} assigned you #${task.number} “${task.title}”`,
-  };
+// People newly assigned hear about it, except whoever assigned themselves.
+function assignmentNotices(actor: Actor, assigneeIds: string[], task: { id: string; number: number; title: string }) {
+  return assigneeIds
+    .filter((id) => id !== actor.id)
+    .map((userId) => ({
+      userId,
+      actorId: actor.id,
+      taskId: task.id,
+      message: `${actor.name} assigned you #${task.number} “${task.title}”`,
+    }));
 }
 
 // People newly added to "Tested by" hear about it, except whoever added themselves.
@@ -165,7 +178,7 @@ const createTaskSchema = z.object({
   clientIds: z.array(z.string().min(1)).min(1, "Pick at least one PO"),
   typeId: z.string().min(1).nullish(),
   priorityId: z.string().min(1).nullish(),
-  assigneeId: z.string().min(1).nullish(),
+  assigneeIds: z.array(z.string().min(1)).max(20).optional(),
   testerIds: z.array(z.string().min(1)).max(20).optional(),
   // Defaults to the initial status; anything else must be one step away from it.
   statusId: z.string().min(1).optional(),
@@ -180,13 +193,13 @@ tasksRouter.post(
     const actor = requirePermission(request, PERMISSIONS.taskCreate);
     const input = createTaskSchema.parse(request.body);
     // The creator of a new task has the same rights as on any task they created.
-    const access = taskAccess(actor, { reporterId: actor.id, assigneeId: null });
+    const access = taskAccess(actor, { reporterId: actor.id, assignees: [] });
 
     const clients = await findClients(input.clientIds);
     const type = input.typeId ? await findType(input.typeId) : null;
     // Without "set priority" the priority stays blank for a BA/Admin to fill in.
     const priority = access.setPriority && input.priorityId ? await findPriority(input.priorityId) : null;
-    const assignee = input.assigneeId ? await findAssignee(actor, access.assign, input.assigneeId) : null;
+    const assignees = input.assigneeIds?.length ? await findAssignees(actor, access.assign, input.assigneeIds) : [];
     const testers = input.testerIds?.length ? await findTesters(input.testerIds) : [];
     if (input.comment && !access.comment) throw new HttpError(403, "Your role can't comment");
 
@@ -216,7 +229,7 @@ tasksRouter.post(
           clients: { connect: clients.map((client) => ({ id: client.id })) },
           typeId: type?.id ?? null,
           priorityId: priority?.id ?? null,
-          assigneeId: assignee?.id ?? null,
+          assignees: { connect: assignees.map((assignee) => ({ id: assignee.id })) },
           testers: { connect: testers.map((tester) => ({ id: tester.id })) },
           statusId: status.id,
           reporterId: actor.id,
@@ -231,8 +244,7 @@ tasksRouter.post(
       if (input.comment) {
         await transaction.comment.create({ data: { taskId: created.id, authorId: actor.id, body: input.comment } });
       }
-      const notice = assignmentNotice(actor, created.assigneeId, created);
-      if (notice) await transaction.notification.create({ data: notice });
+      await transaction.notification.createMany({ data: assignmentNotices(actor, assignees.map((assignee) => assignee.id), created) });
       await transaction.notification.createMany({ data: testerNotices(actor, testers.map((tester) => tester.id), created) });
       return transaction.task.findUniqueOrThrow({ where: { id: created.id }, include: taskInclude });
     });
@@ -249,7 +261,7 @@ const updateTaskSchema = z
     typeId: z.string().min(1).nullable(),
     priorityId: z.string().min(1).nullable(),
     statusId: z.string().min(1),
-    assigneeId: z.string().min(1).nullable(),
+    assigneeIds: z.array(z.string().min(1)).max(20),
     testerIds: z.array(z.string().min(1)).max(20),
     reportedDate: dateOnly,
     expectedDeliveryDate: dateOnly.nullable(),
@@ -320,11 +332,12 @@ tasksRouter.patch(
       data.priorityId = priority?.id ?? null;
       record("Priority", task.priority?.name ?? null, priority?.name ?? null);
     }
-    if (input.assigneeId !== undefined && input.assigneeId !== task.assigneeId) {
-      if (access.assign === "none") throw new HttpError(403, "You can't change who this task is assigned to");
-      const assignee = input.assigneeId ? await findAssignee(actor, access.assign, input.assigneeId) : null;
-      data.assigneeId = assignee?.id ?? null;
-      changes.push({ field: "Assignee", oldValue: task.assignee?.name ?? null, newValue: assignee?.name ?? null, oldRef: task.assigneeId, newRef: assignee?.id ?? null });
+    if (input.assigneeIds !== undefined) {
+      const assignees = await findAssignees(actor, access.assign, input.assigneeIds, task.assignees.map((assignee) => assignee.id));
+      if (!sameIds(assignees, task.assignees)) {
+        data.assignees = { set: assignees.map((assignee) => ({ id: assignee.id })) };
+        changes.push({ field: "Assignee", oldValue: names(task.assignees), newValue: names(assignees), oldRef: refs(task.assignees), newRef: refs(assignees) });
+      }
     }
     if (input.testerIds !== undefined) {
       const testers = await findTesters(input.testerIds, task.testers.map((tester) => tester.id));
@@ -400,8 +413,8 @@ tasksRouter.patch(
         data: changes.map((change) => ({ ...change, taskId: task.id, actorId: actor.id })),
       });
       if (reason) await transaction.comment.create({ data: { taskId: task.id, authorId: actor.id, body: reason } });
-      const notice = saved.assigneeId !== task.assigneeId ? assignmentNotice(actor, saved.assigneeId, saved) : null;
-      if (notice) await transaction.notification.create({ data: notice });
+      const addedAssignees = saved.assignees.filter((assignee) => !task.assignees.some((before) => before.id === assignee.id));
+      await transaction.notification.createMany({ data: assignmentNotices(actor, addedAssignees.map((assignee) => assignee.id), saved) });
       const addedTesters = saved.testers.filter((tester) => !task.testers.some((before) => before.id === tester.id));
       await transaction.notification.createMany({ data: testerNotices(actor, addedTesters.map((tester) => tester.id), saved) });
       return saved;

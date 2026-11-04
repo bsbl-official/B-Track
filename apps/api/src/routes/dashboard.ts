@@ -17,7 +17,7 @@ dashboardRouter.get(
   asyncHandler(async (request, response) => {
     const actor = getActor(request);
     const teamWide = can(actor, PERMISSIONS.dashboardViewAll);
-    const scope: Prisma.TaskWhereInput = teamWide ? visibleTasksWhere(actor) : { assigneeId: actor.id };
+    const scope: Prisma.TaskWhereInput = teamWide ? visibleTasksWhere(actor) : { assignees: { some: { id: actor.id } } };
 
     const [tasks, statuses, activity] = await Promise.all([
       prisma.task.findMany({
@@ -27,7 +27,7 @@ dashboardRouter.get(
           number: true,
           title: true,
           statusId: true,
-          assigneeId: true,
+          assignees: { select: { id: true } },
           expectedDeliveryDate: true,
           deliveredDate: true,
           status: { select: { name: true, color: true, isClosed: true } },
@@ -55,7 +55,7 @@ dashboardRouter.get(
       data: {
         scope: teamWide ? "all" : "mine",
         cards: {
-          assignedToMe: open.filter((task) => task.assigneeId === actor.id).length,
+          assignedToMe: open.filter((task) => task.assignees.some((assignee) => assignee.id === actor.id)).length,
           open: open.length,
           overdue: open.filter((task) => task.gapDays !== null && task.gapDays > 0).length,
           dueToday: open.filter((task) => task.gapDays === 0).length,

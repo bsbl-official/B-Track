@@ -59,7 +59,7 @@ export function matchesFilters(task: Task, filters: Filters): boolean {
     (!filters.typeId || (filters.typeId === "none" ? task.typeId === null : task.typeId === filters.typeId)) &&
     (!filters.priorityId || (filters.priorityId === "none" ? task.priorityId === null : task.priorityId === filters.priorityId)) &&
     (!filters.statusId || task.statusId === filters.statusId) &&
-    (!filters.assigneeId || (filters.assigneeId === "unassigned" ? task.assigneeId === null : task.assigneeId === filters.assigneeId)) &&
+    (!filters.assigneeId || (filters.assigneeId === "unassigned" ? task.assignees.length === 0 : task.assignees.some((assignee) => assignee.id === filters.assigneeId))) &&
     (!filters.testedById || (filters.testedById === "none" ? task.testers.length === 0 : task.testers.some((tester) => tester.id === filters.testedById))) &&
     inRange(task.reportedDate, filters.reportedFrom, filters.reportedTo) &&
     inRange(task.expectedDeliveryDate, filters.probableFrom, filters.probableTo) &&

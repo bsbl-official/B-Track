@@ -67,7 +67,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - Roles are data, not an enum. Seeded roles:
     - **Admin:** has every permission.
     - **Business Analyst:** create, view all, edit all, assign to anyone, set priority, set status, comment. Assignable, and `canTest`.
-    - **Developer:** create, **view all**, set priority, set status, comment. **No "assign to anyone"**: a developer can only set a task to themselves or Unassigned. Moving a task between people is for Admin and BA (owner's decision). Assignable, `canTest` too, and the default role.
+    - **Developer:** create, **view all**, set priority, set status, comment. **No "assign to anyone"**: a developer can only add or remove themselves as an assignee. Moving a task between people is for Admin and BA (owner's decision). Assignable, `canTest` too, and the default role.
     - **DBA** (database administrator): the same access as Developer (migration `20261026090000_dba_role` copied the Developer role's permissions and flags). Not the default role.
     - **User:** no permissions, not assignable, `canTest`. Its one entry, "User" (`user-confirmation@b-track.invalid`, no password, so it can't sign in), stands for confirmation from the user's side in "Tested by".
   - So "Assigned dev" lists developers and BAs, and "Tested by" lists developers, BAs and User. The owner explicitly wants BAs assignable (a BA may take a testing task), and wants developers and BAs to see every task.
@@ -80,7 +80,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - `number` (autoincrement "Issue No"), `title`, `description`.
   - `clients Client[]` (many-to-many; a task has one or more POs).
   - `typeId?`, `priorityId?`, `statusId`.
-  - People: `reporterId` (creator), `assigneeId?`, and `testers User[]` (many-to-many "Tested by": none, one or several; migration `20261003120000_multiple_testers` moved the old single `testedById` into it).
+  - People: `reporterId` (creator), `assignees User[]` (many-to-many "Assigned dev": none = unassigned, one or several; migration `20261104090000_multiple_assignees` moved the old single `assigneeId` into it), and `testers User[]` (many-to-many "Tested by": none, one or several; migration `20261003120000_multiple_testers` moved the old single `testedById` into it).
   - `@db.Date` dates: `reportedDate` ("Date" / assigned on), `expectedDeliveryDate` ("Probable date", the developer's estimate) and `deliveredDate` ("Completed").
 - **Client:** a PO. Has `name`, `color`, `isActive`. The code and DB say `Client`; the UI says "PO" / "Partner Organisation".
 - **Configurable data:**
@@ -103,15 +103,15 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - Upload rights follow `access.edit` (own tasks). Viewing needs task visibility. Removal is the uploader or `access.edit`.
   - Adds and removals are written to TaskHistory as field "Evidence".
 - **Comment**, **TaskHistory** (one row per field change, with a human label: "Title", "PO", "Status", "Probable date" and so on), and **Notification** (`message`, optional `link` such as `access?tab=requests`, `readAt`).
-  - History stores display values (names), and names can repeat (two users share one). Since migration `20261027090000_kpi_report`, "Assignee" rows also carry `oldRef` / `newRef` (user ids). Older rows have none; the KPI report resolves them by walking back from the current assignee, then by unique name.
+  - History stores display values (names), and names can repeat (two users share one). Since migration `20261027090000_kpi_report`, "Assignee" rows also carry `oldRef` / `newRef`: comma-separated user ids, in the same order as the comma-joined names. Older rows have none and name one person; the KPI report resolves them by walking back from the current assignees, then by unique name.
 
 ### Business rules (the server is the source of truth)
 
 - **Permissions:** a person's effective permissions are the role's permissions, plus grants, minus revokes (`lib/permissions.ts`). Code checks **permission keys, never role names**. The keys are `task.create`, `task.view_all`, `task.edit_all`, `task.assign_any`, `task.set_priority`, `task.set_status`, `comment.create`, `dashboard.view_all`, `kpi.view`, `po.manage` and `access.manage`. `kpi.view` ("See KPI reports") was given by migration to roles that have `access.manage` (Admin).
 - **Dashboard scope:** `dashboard.view_all` (Admin only by default; grantable per person) shows team-wide metrics. Without it, `GET /api/dashboard` counts only tasks **assigned to** the person, and the page shows four cards (Assigned to me, Overdue, Due today, Completed) with no "Open tasks" card.
 - **Per-task access:** `lib/taskAccess.ts` works out what a person may do with a given task. The API returns it as `task.access` and the UI only hides or disables controls based on it.
-  - A person's **own tasks** are the ones **assigned to them**, plus ones they created that are **still unassigned**. Once a task is assigned to someone else it belongs to that assignee: the creator can only view it (and comment), like any colleague (owner's rule, 2026-10-03). On own tasks people can edit every field, change status (with `task.set_status`), set priority (with `task.set_priority`), **choose the tester**, and **assign** (to anyone with `task.assign_any`, otherwise only themselves or Unassigned).
-  - **Delete** is for the creator while the task is still theirs (unassigned or assigned to themselves), plus `task.edit_all` (Admin, BA), so an assignee can't delete work handed to them. `task.edit_all` gives every right on every task.
+  - A person's **own tasks** are the ones where they're **one of the assignees**, plus ones they created that **nobody else is assigned to**. Once a task is assigned to someone else it belongs to its assignees: the creator can only view it (and comment), like any colleague (owner's rule, 2026-10-03). On own tasks people can edit every field, change status (with `task.set_status`), set priority (with `task.set_priority`), **choose the tester**, and **change the assignees** (anyone with `task.assign_any`; otherwise they may only add or remove themselves, and other assignees stay, shown locked in the picker).
+  - **Delete** is for the creator while the task is still theirs (no assignee other than themselves), plus `task.edit_all` (Admin, BA), so an assignee can't delete work handed to them. `task.edit_all` gives every right on every task.
   - Other people's tasks need `task.edit_all` for any of that. For example, a developer can unassign their own task or pick a BA to test it, but can't move it to another dev or touch a colleague's task.
   - **Claiming:** anyone whose role is assignable (`actor.isAssignable`) can assign an **unassigned** task to **themselves only** (`assign: "self"`), even if it isn't theirs. Once claimed it's their task, so the own-task rules above apply.
   - Without `task.view_all`, a person sees only tasks they created or are assigned to.
@@ -124,9 +124,9 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - New tasks need at least one active PO. The status must be the initial one or one step from it.
   - Without `task.set_priority`, priority is left null.
 - **Daily (routine) tasks** (`type.isRoutine`): no probable date, so no gap days, never overdue / due today, no deadline reminders. The API drops a date sent on create and refuses one on PATCH; switching a task to Daily clears its date without asking for a reason. The sheet shows a "Daily" tag in Probable date. The KPI report leaves them out of completions (time to finish, on time) and date changes.
-- **Notifications:** assigning a task notifies the assignee, and adding people to "Tested by" (on create or PATCH) notifies each newly added tester. Nobody is notified about their own change.
-- **KPI report** (`lib/kpi.ts`; no scores, by the owner's choice): replays each task's Status, Assignee and Probable date history into timelines and credits events to whoever held the task at the time.
-  - Completed tasks (Completed date in the period, still closed) go to the assignee at the last completion, timed from when it was assigned to them.
+- **Notifications:** assigning a task notifies each newly added assignee, and adding people to "Tested by" (on create or PATCH) notifies each newly added tester. Nobody is notified about their own change.
+- **KPI report** (`lib/kpi.ts`; no scores, by the owner's choice): replays each task's Status, Assignee and Probable date history into timelines and credits events to whoever held the task at the time; a shared task credits **each** assignee (so the 2+ people overview sums can count a shared task more than once).
+  - Completed tasks (Completed date in the period, still closed) go to every assignee at the last completion, each timed from the start of their unbroken stretch on the task.
   - On time compares the completed date with the **first** probable date while it was theirs (the date it had when they got it, or the first one they set).
   - Date changes (with the reason from the comment the PATCH writes), Testing → In Progress ("failed testing"), Completed → open ("reopened", charged to whoever completed it), time in Blocked, priority/type mix and PO share (a multi-PO task counts toward each PO).
   - Tasks reported by `sheet-import@example.com` (the imported #6–#288) are left out: they have no history before 2026-10-03 (owner agreed). Days are calendar days (owner: no working days, no task size, no per-priority time limits for now).
@@ -197,7 +197,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - A "New task" button opens `NewTaskModal` (sectioned form). It has an **Evidence** section (`components/Evidence.tsx`): Ctrl+V anywhere in the form attaches a pasted screenshot, or drop or browse for files. The files upload right after the task is created. A failed file doesn't undo the task; it shows an error naming it.
   - Titles with evidence show a paperclip count. The drawer's Evidence gallery shows thumbnails and files, with add (paste, drop, browse) and remove.
 - **Other components:**
-  - `PoPicker`: multi-select list for POs, and with `required={false}` for testers (Tested by) too, rendered on `document.body` through a portal so form and table CSS can't leak into it. It commits when closed.
+  - `PoPicker`: searchable multi-select list (a search box at the top, focused on open; Enter ticks the first match) for POs, and with `required={false}` for assignees (Assigned dev) and testers (Tested by) too, with `locked` ids that show ticked but can't change, rendered on `document.body` through a portal so form and table CSS can't leak into it. It commits when closed.
   - `TaskDrawer`: details, comments, history, plus Edit (title, PO, type, Date, Probable date; needs `access.edit`) and Delete (needs `access.delete`, with a confirm).
   - `Logo.tsx`: `Logo` and `Brand` (logo plus "B-Track" wordmark).
   - `NavIcon`: sidebar line icons.

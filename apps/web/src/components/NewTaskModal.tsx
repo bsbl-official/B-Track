@@ -54,7 +54,7 @@ export function NewTaskModal({
     typeId: null,
     priorityId: null,
     statusId: initialStatus?.id,
-    assigneeId: assignAny ? null : (assignees[0]?.id ?? null),
+    assigneeIds: assignAny || !assignees[0] ? [] : [assignees[0].id],
     testerIds: [],
     reportedDate: todayIso(),
     expectedDeliveryDate: null,
@@ -225,13 +225,10 @@ export function NewTaskModal({
           <section className="form-section">
             <h3 className="form-section-title">People &amp; progress</h3>
             <div className="form-grid">
-              <label>
-                <span>Assigned dev {!assignAny && <em>only yourself</em>}</span>
-                <select value={draft.assigneeId ?? ""} onChange={(event) => change({ assigneeId: event.target.value || null })}>
-                  <option value="">Unassigned</option>
-                  {assignees.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-                </select>
-              </label>
+              <div className="field">
+                <span>Assigned dev {assignAny ? <em>one or more, optional</em> : <em>only yourself</em>}</span>
+                <PoPicker variant="field" label="Assigned dev" placeholder="Unassigned" required={false} options={assignees} value={draft.assigneeIds} onChange={(assigneeIds) => change({ assigneeIds })} />
+              </div>
 
               <div className="field">
                 <span>Tested by <em>one or more, optional</em></span>

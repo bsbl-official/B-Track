@@ -1,8 +1,9 @@
 // The developer KPI report, worked out from task history.
 //
 // Each task's history is replayed into timelines (who held it, its status, its probable date), and
-// every event is credited to whoever held the task at that moment. A completed task belongs to the
-// person who completed it, timed from when it was assigned to them. Tasks imported from the old sheet
+// every event is credited to whoever held the task at that moment (each of them, when several people
+// shared it). A completed task belongs to the people who completed it, each timed from when it was
+// assigned to them. Tasks imported from the old sheet
 // are left out: they arrived without history, so their start and first probable date are unknown.
 import { formatDateOnly } from "./dates.js";
 import { prisma } from "./prisma.js";
@@ -43,6 +44,10 @@ function timeline<T>(initial: T, start: number, changes: Array<{ at: number; val
 }
 
 const valueAt = <T>(spans: Span<T>[], at: number): T | undefined => spans.find((span) => span.start <= at && at < span.end)?.value;
+
+// A task's assignees as one comparable timeline value ("" = unassigned), and back.
+const holderKey = (ids: Array<string | null>) => [...new Set(ids.filter((id): id is string => !!id))].sort().join(",");
+const holderIds = (key: string) => (key ? key.split(",") : []);
 
 export type TaskRef = {
   id: string;
@@ -127,7 +132,7 @@ export async function buildKpiReport(from: string, to: string, onlyPeople: strin
         number: true,
         title: true,
         createdAt: true,
-        assigneeId: true,
+        assignees: { select: { id: true } },
         expectedDeliveryDate: true,
         deliveredDate: true,
         status: { select: { name: true, isClosed: true } },
@@ -201,17 +206,32 @@ export async function buildKpiReport(from: string, to: string, onlyPeople: strin
     const statusRows = rows.filter((row) => row.field === "Status");
     const probableRows = rows.filter((row) => row.field === "Probable date");
 
-    // Who held the task, walked back from today's assignee so a repeated name resolves to the right person.
+    // Who held the task (one or more people, kept as sorted comma-joined ids), walked back from today's
+    // assignees so a repeated name resolves to the right person. Rows from before a task could have
+    // several assignees name one person and may lack ids.
     const assigneeRows = rows.filter((row) => row.field === "Assignee");
-    let holder = task.assigneeId;
-    const assigneeChanges: Array<{ at: number; value: string | null }> = [];
+    let holder = holderKey(task.assignees.map((assignee) => assignee.id));
+    const assigneeChanges: Array<{ at: number; value: string }> = [];
     for (const row of [...assigneeRows].reverse()) {
-      const toId =
-        row.newValue === null ? null : row.newRef ?? (holder && usersById.get(holder)?.name === row.newValue ? holder : byName(row.newValue));
-      assigneeChanges.unshift({ at: row.at, value: toId });
-      holder = row.oldValue === null ? null : row.oldRef ?? byName(row.oldValue);
+      const current = holderIds(holder);
+      const toIds =
+        row.newValue === null ? [] : row.newRef?.split(",") ?? [current.find((id) => usersById.get(id)?.name === row.newValue) ?? byName(row.newValue)];
+      assigneeChanges.unshift({ at: row.at, value: holderKey(toIds) });
+      holder = holderKey(row.oldValue === null ? [] : row.oldRef?.split(",") ?? [byName(row.oldValue)]);
     }
     const holders = timeline(holder, created, assigneeChanges);
+    const holdersAt = (at: number) => holderIds(valueAt(holders, at) ?? "");
+    // Each person's unbroken stretches on the task (co-assignees coming and going don't break one).
+    const stretches = new Map<string, Array<{ start: number; end: number }>>();
+    for (const span of holders) {
+      for (const userId of holderIds(span.value)) {
+        const list = stretches.get(userId) ?? [];
+        const last = list[list.length - 1];
+        if (last && last.end === span.start) last.end = span.end;
+        else list.push({ start: span.start, end: span.end });
+        stretches.set(userId, list);
+      }
+    }
     const statusSpans = timeline(statusRows[0]?.oldValue ?? task.status.name, created, statusRows.map((row) => ({ at: row.at, value: row.newValue ?? "" })));
     const probable = timeline(
       probableRows[0] ? probableRows[0].oldValue : formatDateOnly(task.expectedDeliveryDate),
@@ -220,26 +240,29 @@ export async function buildKpiReport(from: string, to: string, onlyPeople: strin
     );
 
     // Tasks someone held during the period, unless the task was already closed for all of that time.
-    for (const span of holders) {
-      if (!span.value || span.end <= periodStart || span.start >= periodEnd) continue;
-      const a = Math.max(span.start, periodStart);
-      const b = Math.min(span.end, periodEnd);
-      const openAtSomePoint = statusSpans.some((status) => status.start < b && status.end > a && !closedStatuses.has(status.value));
-      if (openAtSomePoint) markHandled(span.value, ref);
+    for (const [userId, list] of stretches) {
+      for (const span of list) {
+        if (span.end <= periodStart || span.start >= periodEnd) continue;
+        const a = Math.max(span.start, periodStart);
+        const b = Math.min(span.end, periodEnd);
+        const openAtSomePoint = statusSpans.some((status) => status.start < b && status.end > a && !closedStatuses.has(status.value));
+        if (openAtSomePoint) markHandled(userId, ref);
+      }
     }
 
     // Daily (routine) tasks have no probable date, so they're left out of completions and date changes.
     const isRoutine = task.type?.isRoutine ?? false;
 
-    // 1, 2, 8. Completed in the period: credited to whoever held it when it was (last) completed.
+    // 1, 2, 8. Completed in the period: credited to everyone who held it when it was (last) completed,
+    // each timed from when they got it.
     const deliveredKey = formatDateOnly(task.deliveredDate);
     if (!isRoutine && task.status.isClosed && deliveredKey && deliveredKey >= from && deliveredKey <= to) {
       const lastCompletion = [...statusRows].reverse().find((row) => row.newValue && closedStatuses.has(row.newValue));
       const completedAt = lastCompletion?.at ?? created;
-      const span = holders.find((item) => item.start <= completedAt && completedAt < item.end);
-      if (span?.value) {
-        const owner = personFor(span.value);
-        markHandled(span.value, ref);
+      for (const userId of holdersAt(completedAt)) {
+        const span = stretches.get(userId)!.find((item) => item.start <= completedAt && completedAt < item.end)!;
+        const owner = personFor(userId);
+        markHandled(userId, ref);
         const within = (at: number) => at >= span.start && at <= completedAt;
         const firstEntry = (status: string) => {
           if (valueAt(statusSpans, span.start) === status) return span.start;
@@ -276,12 +299,10 @@ export async function buildKpiReport(from: string, to: string, onlyPeople: strin
     // 3. Probable date moves (the first date set doesn't count), with the reason given.
     for (const row of probableRows) {
       if (isRoutine || !row.oldValue || !inPeriod(row.at)) continue;
-      const userId = valueAt(holders, row.at);
-      if (!userId) continue;
       const reason = task.comments
         .filter((comment) => comment.authorId === row.actor.id && Math.abs(comment.createdAt.getTime() - row.at) < 10_000)
         .map((comment) => comment.body.slice(comment.body.indexOf(": ") + 2))[0];
-      personFor(userId).dateChanges.push({
+      for (const userId of holdersAt(row.at)) personFor(userId).dateChanges.push({
         ...ref,
         at: new Date(row.at).toISOString(),
         from: row.oldValue,
@@ -296,34 +317,34 @@ export async function buildKpiReport(from: string, to: string, onlyPeople: strin
       if (!inPeriod(row.at)) continue;
       // 4. Sent back from testing.
       if (row.oldValue === TESTING && row.newValue === IN_PROGRESS) {
-        const userId = valueAt(holders, row.at);
-        if (userId) personFor(userId).failedTesting.push({ ...ref, at: new Date(row.at).toISOString(), by: row.actor.name });
+        for (const userId of holdersAt(row.at)) personFor(userId).failedTesting.push({ ...ref, at: new Date(row.at).toISOString(), by: row.actor.name });
       }
       // 5. Reopened: charged to whoever completed it.
       if (row.oldValue && closedStatuses.has(row.oldValue) && row.newValue && !closedStatuses.has(row.newValue)) {
         const completion = [...statusRows].reverse().find((earlier) => earlier.at < row.at && earlier.newValue && closedStatuses.has(earlier.newValue));
         const completedAt = completion?.at ?? created;
-        const userId = valueAt(holders, completedAt) ?? valueAt(holders, row.at);
-        if (userId) {
+        const completers = holdersAt(completedAt);
+        for (const userId of completers.length ? completers : holdersAt(row.at)) {
           personFor(userId).reopened.push({ ...ref, at: new Date(row.at).toISOString(), by: row.actor.name, completedDate: dayKey(completedAt) });
         }
       }
     }
 
-    // 6. Time in Blocked within the period, split between whoever held the task meanwhile.
+    // 6. Time in Blocked within the period, for each person who held the task meanwhile.
     for (const status of statusSpans) {
       if (status.value !== BLOCKED) continue;
-      for (const span of holders) {
-        if (!span.value) continue;
-        const a = Math.max(status.start, span.start, periodStart);
-        const b = Math.min(status.end, span.end, periodEnd);
-        if (b <= a) continue;
-        personFor(span.value).blocked.push({
-          ...ref,
-          from: new Date(a).toISOString(),
-          to: b === now && status.end === Infinity ? null : new Date(b).toISOString(),
-          days: round1((b - a) / DAY_MS),
-        });
+      for (const [userId, list] of stretches) {
+        for (const span of list) {
+          const a = Math.max(status.start, span.start, periodStart);
+          const b = Math.min(status.end, span.end, periodEnd);
+          if (b <= a) continue;
+          personFor(userId).blocked.push({
+            ...ref,
+            from: new Date(a).toISOString(),
+            to: b === now && status.end === Infinity ? null : new Date(b).toISOString(),
+            days: round1((b - a) / DAY_MS),
+          });
+        }
       }
     }
   }

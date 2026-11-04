@@ -57,7 +57,7 @@ model User {
   updatedAt          DateTime   @updatedAt
 
   reportedTasks Task[]         @relation("TaskReporter")
-  assignedTasks Task[]         @relation("TaskAssignee")
+  assignedTasks Task[]         @relation("TaskAssignees")
   testedTasks   Task[]         @relation("TaskTesters")
   comments      Comment[]
   attachments   Attachment[]   @relation("AttachmentUploader")
@@ -172,8 +172,8 @@ model Task {
   status               Status    @relation(fields: [statusId], references: [id])
   reporterId           String
   reporter             User      @relation("TaskReporter", fields: [reporterId], references: [id])
-  assigneeId           String?
-  assignee             User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  // "Assigned dev": one or more people whose role can take tasks (or none = unassigned).
+  assignees            User[]    @relation("TaskAssignees")
   // "Tested by": one or more people whose role can test (or none yet).
   testers              User[]    @relation("TaskTesters")
   // Shown as "Date": the day the task was assigned.
@@ -192,7 +192,6 @@ model Task {
 
   @@index([reporterId])
   @@index([statusId])
-  @@index([assigneeId])
 }
 
 // Evidence files (screenshots, logs, PDFs) kept in the database so they're backed up with the
@@ -234,8 +233,8 @@ model TaskHistory {
   field     String
   oldValue  String?
   newValue  String?
-  // Ids behind the display values where names can repeat (user ids for "Assignee"), so the
-  // KPI report credits the right person. Empty on rows written before they were recorded.
+  // Ids behind the display values where names can repeat (comma-separated user ids for "Assignee"),
+  // so the KPI report credits the right people. Empty on rows written before they were recorded.
   oldRef    String?
   newRef    String?
   createdAt DateTime @default(now())

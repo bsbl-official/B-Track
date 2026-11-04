@@ -184,7 +184,7 @@ async function main() {
         priorityId: priorityByName.get(sample.priority)!.id,
         statusId: statusByName.get(sample.status)!.id,
         reporterId: userByEmail.get(sample.reporter)!.id,
-        assigneeId: sample.assignee ? userByEmail.get(sample.assignee)!.id : null,
+        assignees: { connect: sample.assignee ? [{ id: userByEmail.get(sample.assignee)!.id }] : [] },
         reportedDate: daysFromToday(sample.reported),
         expectedDeliveryDate: daysFromToday(sample.expected),
         deliveredDate: sample.delivered === undefined ? null : daysFromToday(sample.delivered),

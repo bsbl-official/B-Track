@@ -290,7 +290,7 @@ export function TaskDrawer({
               <section className="info-card">
                 <h3>People</h3>
                 <dl>
-                  <PersonRow label="Assigned dev" people={[task.assignee]} empty="Unassigned" />
+                  <PersonRow label="Assigned dev" people={task.assignees} empty="Unassigned" />
                   <PersonRow label="Tested by" people={task.testers} empty="Not yet" />
                   <PersonRow label="Created by" people={[task.reporter]} empty="—" />
                 </dl>

@@ -11,15 +11,15 @@ export function PoChips({ pos, placeholder = "Select PO…" }: { pos: Option[]; 
   return (
     <span className="po-chips">
       {pos.map((po) => (
-        <span key={po.id} className="po-chip" style={{ "--pill": po.color ?? NEUTRAL } as CSSProperties}>{po.name}</span>
+        <span key={po.id} className="po-chip" title={po.name} style={{ "--pill": po.color ?? NEUTRAL } as CSSProperties}>{po.name}</span>
       ))}
     </span>
   );
 }
 
 /**
- * Pick one or more POs (or, with `required={false}`, any number of people, e.g. testers). The choice is reported when the list closes, so editing a sheet
- * cell saves once rather than on every tick.
+ * Pick one or more POs (or, with `required={false}`, any number of people, e.g. assignees or testers). The choice is reported when the list closes, so editing
+ * a sheet cell saves once rather than on every tick. A search box at the top narrows the list; Enter ticks the first match.
  */
 export function PoPicker({
   options,
@@ -32,6 +32,7 @@ export function PoPicker({
   placeholder,
   required = true,
   bulk = false,
+  locked = [],
 }: {
   options: Option[];
   value: string[];
@@ -45,9 +46,12 @@ export function PoPicker({
   required?: boolean;
   // Offer "Select all" / "Clear" in the footer (long lists such as people on the KPI report).
   bulk?: boolean;
+  // Shown ticked but can't be changed (e.g. other assignees, for someone who may only add or remove themselves).
+  locked?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
+  const [query, setQuery] = useState("");
   const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -98,13 +102,18 @@ export function PoPicker({
         ? { top: rect.bottom + 6, left, width, maxHeight: Math.min(340, below) }
         : { bottom: window.innerHeight - rect.top + 6, left, width, maxHeight: Math.min(340, above) },
     );
+    setQuery("");
     setOpen(true);
   };
 
-  const toggle = (id: string) =>
+  const toggle = (id: string) => {
+    if (locked.includes(id)) return;
     setDraft((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  };
 
   const selected = options.filter((option) => draft.includes(option.id));
+  const search = query.trim().toLowerCase();
+  const shown = search ? options.filter((option) => option.name.toLowerCase().includes(search)) : options;
 
   return (
     <>
@@ -126,14 +135,32 @@ export function PoPicker({
       {/* Rendered on <body> so the surrounding form or table styles can't reach it. */}
       {open && position && createPortal(
         <div ref={panel} className="po-panel" style={{ top: position.top, bottom: position.bottom, left: position.left, minWidth: position.width, maxHeight: position.maxHeight }} role="listbox" aria-multiselectable="true" onClick={(event) => event.stopPropagation()}>
+          <div className="po-search">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></svg>
+            <input
+              autoFocus
+              type="search"
+              value={query}
+              placeholder="Search…"
+              aria-label={`Search ${label}`}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                const first = shown.find((option) => !locked.includes(option.id));
+                if (first) toggle(first.id);
+              }}
+            />
+          </div>
           <div className="po-options">
-            {options.map((option) => (
-              <label key={option.id} className={`po-option ${draft.includes(option.id) ? "checked" : ""}`}>
-                <input type="checkbox" checked={draft.includes(option.id)} onChange={() => toggle(option.id)} />
+            {shown.map((option) => (
+              <label key={option.id} className={`po-option ${draft.includes(option.id) ? "checked" : ""} ${locked.includes(option.id) ? "locked" : ""}`}>
+                <input type="checkbox" checked={draft.includes(option.id)} disabled={locked.includes(option.id)} onChange={() => toggle(option.id)} />
                 <span className="po-swatch" style={{ background: option.color ?? NEUTRAL }} aria-hidden="true" />
                 <span className="po-option-name">{option.name}</span>
               </label>
             ))}
+            {shown.length === 0 && <p className="po-empty">No match for “{query.trim()}”</p>}
           </div>
           {draft.length === 0 && required && <p className="po-hint">Pick at least one PO.</p>}
           <div className="po-panel-footer">

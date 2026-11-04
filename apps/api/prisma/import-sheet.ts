@@ -117,7 +117,7 @@ async function main() {
           priorityId: row.priority ? priorityByName.get(row.priority)!.id : null,
           statusId: statusByName.get(row.status)!.id,
           reporterId: importer.id,
-          assigneeId: userByName.get(row.dev)!.id,
+          assignees: { connect: [{ id: userByName.get(row.dev)!.id }] },
           testers: { connect: row.tester ? [{ id: userByName.get(row.tester)!.id }] : [] },
           reportedDate: day(date!),
           expectedDeliveryDate: row.probable ? day(row.probable) : null,

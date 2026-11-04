@@ -24,7 +24,7 @@ const views: Array<{ key: View; label: string; matches: (task: Task) => boolean 
   { key: "all", label: "All", matches: () => true },
   { key: "open", label: "Open", matches: (task) => !task.status.isClosed },
   // Open work nobody has taken yet; anyone who can take tasks may claim one.
-  { key: "unassigned", label: "Unassigned", matches: (task) => !task.status.isClosed && task.assigneeId === null },
+  { key: "unassigned", label: "Unassigned", matches: (task) => !task.status.isClosed && task.assignees.length === 0 },
   { key: "overdue", label: "Overdue", matches: isOverdue },
   { key: "dueToday", label: "Due today", matches: isDueToday },
   { key: "completed", label: "Completed", matches: (task) => task.status.isClosed },
@@ -90,12 +90,11 @@ function shiftShare(shares: Shares, index: number, deltaPx: number, available: n
 }
 
 // Users a task may be assigned to by someone with the given assign rule.
-function assigneeOptions(meta: Meta, profile: Profile, rule: "anyone" | "self" | "none", currentAssignee: Named | null): Named[] {
+function assigneeOptions(meta: Meta, profile: Profile, rule: "anyone" | "self" | "none", current: Named[]): Named[] {
   const options: Named[] =
     rule === "anyone" ? meta.users.filter((user) => user.isAssignable) : meta.users.filter((user) => user.id === profile.id && user.isAssignable);
   // Keep showing whoever holds the task now, even if the viewer couldn't pick them.
-  if (currentAssignee && !options.some((user) => user.id === currentAssignee.id)) options.push(currentAssignee);
-  return options;
+  return [...options, ...current.filter((person) => !options.some((user) => user.id === person.id))];
 }
 
 export function TaskSheet({
@@ -449,7 +448,7 @@ function compareTasks(a: Task, b: Task, key: SortKey, statusById: Map<string, { 
     case "client": return text(a.clients.map((c) => c.name).join(", "), b.clients.map((c) => c.name).join(", "));
     case "number": return a.number - b.number;
     case "title": return text(a.title, b.title);
-    case "assignee": return text(a.assignee?.name, b.assignee?.name);
+    case "assignee": return text(a.assignees.map((t) => t.name).join(", "), b.assignees.map((t) => t.name).join(", "));
     case "priority": return number(a.priority?.rank ?? null, b.priority?.rank ?? null);
     case "testedBy": return text(a.testers.map((t) => t.name).join(", "), b.testers.map((t) => t.name).join(", "));
     case "expectedDeliveryDate": return text(a.expectedDeliveryDate, b.expectedDeliveryDate);
@@ -669,14 +668,20 @@ function TaskRow({
         <TitleCell value={task.title} type={<TypeIcon type={task.type} types={meta.types} disabled />} evidenceCount={task.attachmentCount} />
       </td>
       <td>
-        <CellSelect
-          label="Assigned dev"
-          value={task.assigneeId ?? ""}
-          options={assigneeOptions(meta, profile, access.assign, task.assignee)}
-          allowEmpty="Unassigned"
-          disabled={access.assign === "none"}
-          onChange={(assigneeId) => update({ assigneeId: assigneeId || null })}
-        />
+        {access.assign === "none" ? (
+          <PoChips pos={task.assignees} placeholder="Unassigned" />
+        ) : (
+          <PoPicker
+            label="Assigned dev"
+            placeholder="Unassigned"
+            required={false}
+            options={assigneeOptions(meta, profile, access.assign, task.assignees)}
+            value={task.assignees.map((assignee) => assignee.id)}
+            // Without "assign to anyone", people can only add or remove themselves.
+            locked={access.assign === "self" ? task.assignees.filter((assignee) => assignee.id !== profile.id).map((assignee) => assignee.id) : []}
+            onChange={(assigneeIds) => update({ assigneeIds })}
+          />
+        )}
       </td>
       <td className="col-priority">
         <CellSelect label="Priority" value={task.priorityId ?? ""} color={task.priority?.color} options={meta.priorities} allowEmpty="—" disabled={!access.setPriority} onChange={(priorityId) => update({ priorityId: priorityId || null })} className="centered" />

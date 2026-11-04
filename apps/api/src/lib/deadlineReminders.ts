@@ -10,7 +10,7 @@ const shortDate = (date: Date) => `${String(date.getUTCDate()).padStart(2, "0")}
 export async function createDeadlineReminders(userId: string) {
   const day = today();
   const tasks = await prisma.task.findMany({
-    where: { assigneeId: userId, status: { isClosed: false }, expectedDeliveryDate: { lte: day } },
+    where: { assignees: { some: { id: userId } }, status: { isClosed: false }, expectedDeliveryDate: { lte: day } },
     select: { id: true, number: true, title: true, expectedDeliveryDate: true },
   });
   if (tasks.length === 0) return;
