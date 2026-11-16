@@ -42,6 +42,8 @@ export type Profile = {
   // An admin reset the password: the person must choose a new one before using the app.
   mustChangePassword: boolean;
   googleLinked: boolean;
+  // The newest "What's new" release notes this person has closed (see components/WhatsNew.tsx).
+  seenReleaseNotes: string | null;
   // The role's permissions adjusted by any per-person grants or removals.
   permissions: string[];
   role: { id: string; name: string; isAssignable: boolean; canTest: boolean };

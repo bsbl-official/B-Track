@@ -7,7 +7,8 @@ import type { Notification, Notifications } from "../types";
 
 const POLL_MS = 15_000;
 
-export function NotificationBell() {
+// onWhatsNew opens the latest release notes; the panel always offers them at the top.
+export function NotificationBell({ onWhatsNew, whatsNewDate }: { onWhatsNew: () => void; whatsNewDate: string }) {
   const [data, setData] = useState<Notifications>({ items: [], unreadCount: 0 });
   const [open, setOpen] = useState(false);
   const [sound, setSound] = useState(soundEnabled);
@@ -120,6 +121,23 @@ export function NotificationBell() {
               )}
             </span>
           </div>
+          <button
+            type="button"
+            className="whats-new-entry"
+            onClick={() => {
+              setOpen(false);
+              onWhatsNew();
+            }}
+          >
+            <span className="whats-new-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3.5 13.9 9l5.6 1.9-5.6 1.9L12 18.5l-1.9-5.7L4.5 10.9 10.1 9z" /><path d="M18.5 3.5v3M17 5h3" /></svg>
+            </span>
+            <span>
+              <strong>What's new in B-Track</strong>
+              <span>{whatsNewDate} · testing sign-off, alerts, tags and weekly tasks</span>
+            </span>
+            <svg className="whats-new-go" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4" /></svg>
+          </button>
           {data.items.length === 0 ? (
             <p className="notification-empty">You're all caught up.</p>
           ) : (

@@ -3,6 +3,7 @@ import { ApiError, SESSION_EXPIRED_EVENT, api } from "./api";
 import { Avatar } from "./components/Avatar";
 import { NotificationBell } from "./components/NotificationBell";
 import { NotifyPrompt } from "./components/NotifyPrompt";
+import { RELEASE, WhatsNew, shouldShowReleaseNotes } from "./components/WhatsNew";
 import { resetNotificationPrompt } from "./sound";
 import { TaskSheet } from "./components/TaskSheet";
 import { errorMessage, hasPermission } from "./format";
@@ -57,6 +58,8 @@ export default function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
+  // The "What's new" window: opens by itself once per release, and from the notifications panel.
+  const [whatsNew, setWhatsNew] = useState(false);
   const navTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const route = useRoute();
 
@@ -83,6 +86,7 @@ export default function App() {
     try {
       const me = await api.me();
       setProfile(me);
+      if (!me.mustChangePassword && shouldShowReleaseNotes(me)) setWhatsNew(true);
       // The rest of the API stays closed until a reset password is replaced.
       setMeta(me.mustChangePassword ? null : await api.meta());
       setLoadError(null);
@@ -111,6 +115,15 @@ export default function App() {
     setProfile(null);
     setMeta(null);
     navigate("dashboard");
+  };
+
+  // Closing it records that this person has seen this release, so it doesn't pop up again.
+  const closeWhatsNew = () => {
+    setWhatsNew(false);
+    if (profile && profile.seenReleaseNotes !== RELEASE.id) {
+      api.markReleaseNotesSeen(RELEASE.id).catch(() => undefined);
+      setProfile({ ...profile, seenReleaseNotes: RELEASE.id });
+    }
   };
 
   const refreshMeta = useCallback(() => {
@@ -198,11 +211,12 @@ export default function App() {
         <header className="topbar">
           <div className="breadcrumbs"><span>Workspace</span><span aria-hidden="true">/</span><strong>{pageTitle}</strong></div>
           <div className="topbar-right">
-            <NotificationBell />
+            <NotificationBell onWhatsNew={() => setWhatsNew(true)} whatsNewDate={RELEASE.date} />
             <UserMenu profile={profile} onLogout={logout} />
           </div>
         </header>
         <NotifyPrompt />
+        {whatsNew && <WhatsNew onClose={closeWhatsNew} />}
 
         <div className="content">
           {!meta && <p className="loading">Loading workspace…</p>}

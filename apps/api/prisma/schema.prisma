@@ -55,6 +55,8 @@ model User {
   // Not a real person: the "User" entry in "Tested by" (confirmation from the user's side). It can't sign
   // in, and the testing sign-off never waits for it.
   isPlaceholder      Boolean    @default(false)
+  // The newest "What's new" release notes the person has closed (e.g. "2026-11"), so they pop up once.
+  seenReleaseNotes   String?
   lastLoginAt        DateTime?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt

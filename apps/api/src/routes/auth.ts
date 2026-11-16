@@ -188,6 +188,7 @@ authRouter.get("/me", requireAuth, asyncHandler(async (request, response) => {
       hasPassword: Boolean(user.passwordHash),
       mustChangePassword: user.mustChangePassword,
       googleLinked: Boolean(user.googleId),
+      seenReleaseNotes: user.seenReleaseNotes,
       permissions: effectivePermissions(user),
       role: { id: user.role.id, name: user.role.name, isAssignable: user.role.isAssignable, canTest: user.role.canTest },
     },
@@ -197,6 +198,13 @@ authRouter.get("/me", requireAuth, asyncHandler(async (request, response) => {
 authRouter.patch("/me", requireAuth, asyncHandler(async (request, response) => {
   const input = z.object({ firstName: personName, lastName: personName }).parse(request.body);
   await prisma.user.update({ where: { id: getActor(request).id }, data: { ...input, name: fullName(input.firstName, input.lastName) } });
+  response.status(204).end();
+}));
+
+// The person closed the "What's new" window for this release; it won't pop up for them again.
+authRouter.post("/me/release-notes", requireAuth, asyncHandler(async (request, response) => {
+  const { id } = z.object({ id: z.string().trim().min(1).max(40) }).parse(request.body);
+  await prisma.user.update({ where: { id: getActor(request).id }, data: { seenReleaseNotes: id } });
   response.status(204).end();
 }));
 

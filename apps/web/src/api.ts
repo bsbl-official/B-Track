@@ -70,6 +70,7 @@ export const api = {
   updateMe: (names: { firstName: string; lastName: string }) => request<void>("/auth/me", send("PATCH", names)),
   changePassword: (passwords: { currentPassword?: string; newPassword: string }) =>
     request<void>("/auth/me/password", send("POST", passwords)),
+  markReleaseNotesSeen: (id: string) => request<void>("/auth/me/release-notes", send("POST", { id })),
   logout: () => request<void>("/auth/logout", send("POST")),
 
   meta: () => request<Meta>("/meta"),
