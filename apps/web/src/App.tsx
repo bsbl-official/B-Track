@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, SESSION_EXPIRED_EVENT, api } from "./api";
 import { Avatar } from "./components/Avatar";
 import { NotificationBell } from "./components/NotificationBell";
+import { NotifyPrompt } from "./components/NotifyPrompt";
+import { resetNotificationPrompt } from "./sound";
 import { TaskSheet } from "./components/TaskSheet";
 import { errorMessage, hasPermission } from "./format";
 import { AccessPage } from "./pages/AccessPage";
@@ -118,7 +120,13 @@ export default function App() {
     return (
       <>
         {loadError && <p className="login-error floating" role="alert">Can't reach the API: {loadError}</p>}
-        <LoginPage onSignedIn={loadSession} />
+        <LoginPage
+          onSignedIn={() => {
+            // Each sign-in asks about browser notifications again, unless they're already allowed.
+            resetNotificationPrompt();
+            void loadSession();
+          }}
+        />
       </>
     );
   }
@@ -192,6 +200,7 @@ export default function App() {
             <UserMenu profile={profile} onLogout={logout} />
           </div>
         </header>
+        <NotifyPrompt />
 
         <div className="content">
           {!meta && <p className="loading">Loading workspace…</p>}

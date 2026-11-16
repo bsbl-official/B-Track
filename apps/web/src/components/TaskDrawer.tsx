@@ -1,10 +1,11 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { api } from "../api";
 import { errorMessage, formatDate, formatDateTime } from "../format";
 import type { Meta, Named, Task, TaskDetail, TaskUpdate } from "../types";
 import { Avatar } from "./Avatar";
 import { EvidenceGallery } from "./Evidence";
 import { PoPicker } from "./PoPicker";
+import { SendBackDialog, TestingPanel } from "./Testing";
 
 // The fields that are read-only in the sheet and edited here.
 type Draft = { title: string; clientIds: string[]; typeId: string | null; reportedDate: string; expectedDeliveryDate: string | null };
@@ -64,6 +65,10 @@ export function TaskDrawer({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [dateReason, setDateReason] = useState("");
+  // While the send-back dialog is open, Escape closes only the dialog.
+  const [sendingBack, setSendingBack] = useState(false);
+  const sendingBackRef = useRef(false);
+  sendingBackRef.current = sendingBack;
 
   const startEditing = () => {
     if (!task) return;
@@ -137,7 +142,7 @@ export function TaskDrawer({
   const editing = draft !== null;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || sendingBackRef.current) return;
       if (editing) setDraft(null);
       else onClose();
     };
@@ -164,6 +169,30 @@ export function TaskDrawer({
     try {
       await api.addComment(taskId, comment.trim());
       setComment("");
+      onTaskChanged(await load());
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const passTesting = async () => {
+    setBusy(true);
+    try {
+      await api.testingVerdict(taskId, { result: "pass" });
+      onTaskChanged(await load());
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const leaveTesting = async () => {
+    if (!task || !window.confirm("Take yourself off testing this task?")) return;
+    setBusy(true);
+    try {
+      await api.updateTask(taskId, { testerIds: task.testers.filter((tester) => tester.id !== currentUserId).map((tester) => tester.id) });
       onTaskChanged(await load());
     } catch (error) {
       onError(error);
@@ -317,6 +346,17 @@ export function TaskDrawer({
               </section>
             </div>
 
+            {task.testing.testers.length > 0 && (
+              <TestingPanel
+                task={task}
+                currentUserId={currentUserId}
+                busy={busy}
+                onPass={passTesting}
+                onSendBack={() => setSendingBack(true)}
+                onLeave={leaveTesting}
+              />
+            )}
+
             <section className="drawer-section">
               <h3>Description</h3>
               {canUpdate ? (
@@ -380,6 +420,8 @@ export function TaskDrawer({
                         <strong>{entry.actor.name}</strong>{" "}
                         {entry.field === "Created" ? (
                           "created this task"
+                        ) : entry.field === "Testing" ? (
+                          entry.newValue === "Passed" ? "passed testing" : "sent it back from testing"
                         ) : entry.field === "Evidence" ? (
                           <>
                             {entry.newValue ? "added evidence" : "removed evidence"}{" "}
@@ -406,6 +448,17 @@ export function TaskDrawer({
           </div>
         )}
       </aside>
+      {task && sendingBack && (
+        <SendBackDialog
+          task={task}
+          onCancel={() => setSendingBack(false)}
+          onSave={async (reason) => {
+            await api.testingVerdict(taskId, { result: "send_back", reason });
+            setSendingBack(false);
+            onTaskChanged(await load());
+          }}
+        />
+      )}
     </div>
   );
 }

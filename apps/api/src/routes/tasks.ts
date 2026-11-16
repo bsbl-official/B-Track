@@ -6,7 +6,8 @@ import { HttpError, asyncHandler } from "../lib/http.js";
 import { PERMISSIONS } from "../lib/permissions.js";
 import { prisma } from "../lib/prisma.js";
 import { taskAccess, visibleTasksWhere } from "../lib/taskAccess.js";
-import { getActor, requirePermission, type Actor } from "../middleware/auth.js";
+import { IN_PROGRESS_STATUS, TESTING_STATUS, isRealTester, serializeTesting, testingState, verdictOf } from "../lib/testing.js";
+import { can, getActor, requirePermission, type Actor } from "../middleware/auth.js";
 import { attachmentSelect, attachmentsRouter } from "./attachments.js";
 
 export const tasksRouter = Router();
@@ -19,7 +20,9 @@ export const taskInclude = {
   status: { select: { id: true, name: true, color: true, isClosed: true } },
   reporter: { select: { id: true, name: true } },
   assignees: { select: { id: true, name: true }, orderBy: { name: "asc" } },
-  testers: { select: { id: true, name: true }, orderBy: { name: "asc" } },
+  // isPlaceholder marks the "User" entry, which never counts in the testing sign-off.
+  testers: { select: { id: true, name: true, isPlaceholder: true }, orderBy: { name: "asc" } },
+  testVerdicts: { select: { testerId: true, passed: true } },
   // The newest comment fills the sheet's Comments column.
   comments: {
     orderBy: { createdAt: "desc" },
@@ -31,9 +34,10 @@ export const taskInclude = {
 
 type TaskRow = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
 
-function serializeTask({ _count, comments, ...task }: TaskRow, actor: Actor) {
+function serializeTask({ _count, comments, testVerdicts, ...task }: TaskRow, actor: Actor) {
   return {
     ...task,
+    testers: task.testers.map(({ id, name }) => ({ id, name })),
     reportedDate: formatDateOnly(task.reportedDate),
     expectedDeliveryDate: formatDateOnly(task.expectedDeliveryDate),
     deliveredDate: formatDateOnly(task.deliveredDate),
@@ -42,7 +46,12 @@ function serializeTask({ _count, comments, ...task }: TaskRow, actor: Actor) {
     attachmentCount: _count.attachments,
     latestComment: comments[0] ? { body: comments[0].body, author: comments[0].author.name, createdAt: comments[0].createdAt } : null,
     access: taskAccess(actor, task),
+    testing: serializeTesting(actor, { ...task, testVerdicts }),
   };
+}
+
+async function findStatusByName(name: string) {
+  return prisma.status.findFirst({ where: { name } });
 }
 
 // Tasks the actor can't see are reported as missing rather than forbidden.
@@ -215,6 +224,16 @@ tasksRouter.post(
       if (!transition) throw new HttpError(400, `A new task can't start as that status`);
       status = transition.toStatus;
     }
+    // Testing sign-off: with real testers, a task can't start out completed, and a developer who assigns
+    // it to themselves and picks testers hands it straight to testing.
+    if (testers.some(isRealTester)) {
+      if (status.isClosed && !can(actor, PERMISSIONS.taskOverrideTesting)) {
+        throw new HttpError(400, "A task with testers can only be completed after every tester has passed it");
+      }
+      if (!status.isClosed && assignees.some((assignee) => assignee.id === actor.id)) {
+        status = (await findStatusByName(TESTING_STATUS)) ?? status;
+      }
+    }
 
     const reportedDate = input.reportedDate ? parseDateOnly(input.reportedDate) : today();
     // Daily (routine) tasks have no probable date.
@@ -287,6 +306,7 @@ tasksRouter.patch(
     const input = updateTaskSchema.parse(request.body);
     const task = await findVisibleTask(actor, request.params.id);
     const access = taskAccess(actor, task);
+    const testing = testingState(actor, task);
 
     if (!access.edit && EDIT_FIELDS.some((field) => input[field] !== undefined)) {
       throw new HttpError(403, "You can only change tasks assigned to you (or unassigned ones you created)");
@@ -332,26 +352,46 @@ tasksRouter.patch(
       data.priorityId = priority?.id ?? null;
       record("Priority", task.priority?.name ?? null, priority?.name ?? null);
     }
+    let nextAssignees: Array<{ id: string }> = task.assignees;
     if (input.assigneeIds !== undefined) {
       const assignees = await findAssignees(actor, access.assign, input.assigneeIds, task.assignees.map((assignee) => assignee.id));
+      nextAssignees = assignees;
       if (!sameIds(assignees, task.assignees)) {
         data.assignees = { set: assignees.map((assignee) => ({ id: assignee.id })) };
         changes.push({ field: "Assignee", oldValue: names(task.assignees), newValue: names(assignees), oldRef: refs(task.assignees), newRef: refs(assignees) });
       }
     }
+    let nextTesters: Array<{ id: string; name: string; isPlaceholder: boolean }> = task.testers;
+    let removedTesterIds: string[] = [];
     if (input.testerIds !== undefined) {
       const testers = await findTesters(input.testerIds, task.testers.map((tester) => tester.id));
-      if (names(testers) !== names(task.testers)) {
-        if (!access.setTester) throw new HttpError(403, "You can only choose testers on your own tasks");
+      if (!sameIds(testers, task.testers)) {
+        const added = testers.filter((tester) => !task.testers.some((before) => before.id === tester.id));
+        const removed = task.testers.filter((before) => !testers.some((tester) => tester.id === before.id));
+        // Testers may take themselves off a task they can't otherwise edit.
+        const leavingOnly = added.length === 0 && removed.length === 1 && removed[0].id === actor.id;
+        if (!access.setTester && !leavingOnly) throw new HttpError(403, "You can only choose testers on your own tasks");
+        // Taking someone else off testing would skip their sign-off.
+        const removedOthers = removed.filter((tester) => isRealTester(tester) && tester.id !== actor.id);
+        if (removedOthers.length > 0 && !testing.override) {
+          throw new HttpError(403, `Only an admin can take ${names(removedOthers)} off testing (testers can take themselves off)`);
+        }
         data.testers = { set: testers.map((tester) => ({ id: tester.id })) };
         record("Tested by", names(task.testers), names(testers));
+        nextTesters = testers;
+        removedTesterIds = removed.map((tester) => tester.id);
       }
     }
 
     // Workflow: only configured transitions are allowed; entering a closed status stamps the
     // delivered date, leaving one clears it (unless the request sets it explicitly).
     let deliveredDate = task.deliveredDate;
+    let nextStatus: { id: string; name: string; isClosed: boolean } = task.status;
     if (input.statusId !== undefined && input.statusId !== task.statusId) {
+      // Testing sign-off: while testers are working on it, the status waits for them.
+      if (testing.lock === "waiting") {
+        throw new HttpError(403, `Waiting for ${names(testing.pending)} to finish testing. A tester can pass it or send it back.`);
+      }
       const transition = await prisma.statusTransition.findUnique({
         where: { fromStatusId_toStatusId: { fromStatusId: task.statusId, toStatusId: input.statusId } },
         include: { toStatus: true },
@@ -360,10 +400,37 @@ tasksRouter.patch(
         const target = await prisma.status.findUnique({ where: { id: input.statusId } });
         throw new HttpError(400, `A task can't move from "${task.status.name}" to "${target?.name ?? "that status"}"`);
       }
-      data.statusId = transition.toStatusId;
-      record("Status", task.status.name, transition.toStatus.name);
-      if (transition.toStatus.isClosed && !task.status.isClosed) deliveredDate = today();
-      if (!transition.toStatus.isClosed && task.status.isClosed) deliveredDate = null;
+      if (testing.lock === "passed" && !transition.toStatus.isClosed) {
+        throw new HttpError(403, "Every tester has passed this task, so it can only be marked Completed now");
+      }
+      nextStatus = transition.toStatus;
+    }
+    // A task with testers is completed only once every one of them has passed it (testers added in
+    // this same change haven't).
+    if (nextStatus.isClosed && nextStatus.id !== task.statusId && !testing.override) {
+      const missing = nextTesters.filter((tester) => isRealTester(tester) && verdictOf(task, tester.id) !== "passed");
+      if (missing.length > 0) {
+        throw new HttpError(403, `${names(missing)} must pass testing before this task can be completed`);
+      }
+    }
+    // A developer handing their task to (new) testers sends it to testing.
+    const addedRealTester = nextTesters.some((tester) => isRealTester(tester) && !task.testers.some((before) => before.id === tester.id));
+    if (addedRealTester && nextAssignees.some((assignee) => assignee.id === actor.id) && !nextStatus.isClosed && nextStatus.name !== TESTING_STATUS) {
+      nextStatus = (await findStatusByName(TESTING_STATUS)) ?? nextStatus;
+    }
+    // Someone left testing and everyone still on it has answered, with at least one send-back: the round is
+    // over, so it goes back to the developer as it would after the last verdict.
+    if (nextStatus.id === task.statusId && testing.inTesting && removedTesterIds.length > 0 && !addedRealTester) {
+      const remaining = nextTesters.filter(isRealTester);
+      if (remaining.length > 0 && remaining.every((tester) => verdictOf(task, tester.id) !== null) && remaining.some((tester) => verdictOf(task, tester.id) === "sent_back")) {
+        nextStatus = (await findStatusByName(IN_PROGRESS_STATUS)) ?? nextStatus;
+      }
+    }
+    if (nextStatus.id !== task.statusId) {
+      data.statusId = nextStatus.id;
+      record("Status", task.status.name, nextStatus.name);
+      if (nextStatus.isClosed && !task.status.isClosed) deliveredDate = today();
+      if (!nextStatus.isClosed && task.status.isClosed) deliveredDate = null;
     }
     if (input.deliveredDate !== undefined) {
       deliveredDate = input.deliveredDate ? parseDateOnly(input.deliveredDate) : null;
@@ -407,7 +474,13 @@ tasksRouter.patch(
       return;
     }
 
+    // Verdicts belong to one testing round: they go when the status moves on (except Testing -> Completed),
+    // and with the tester when someone leaves testing.
+    const clearVerdicts = nextStatus.id !== task.statusId && !(task.status.name === TESTING_STATUS && nextStatus.isClosed);
+
     const updated = await prisma.$transaction(async (transaction) => {
+      if (clearVerdicts) await transaction.testVerdict.deleteMany({ where: { taskId: task.id } });
+      else if (removedTesterIds.length > 0) await transaction.testVerdict.deleteMany({ where: { taskId: task.id, testerId: { in: removedTesterIds } } });
       const saved = await transaction.task.update({ where: { id: task.id }, data, include: taskInclude });
       await transaction.taskHistory.createMany({
         data: changes.map((change) => ({ ...change, taskId: task.id, actorId: actor.id })),
@@ -420,6 +493,89 @@ tasksRouter.patch(
       return saved;
     });
 
+    response.json({ success: true, data: serializeTask(updated, actor) });
+  }),
+);
+
+const verdictSchema = z.discriminatedUnion("result", [
+  z.object({ result: z.literal("pass") }),
+  z.object({ result: z.literal("send_back"), reason: z.string().trim().min(1, "Say what still needs fixing").max(5_000) }),
+]);
+
+const shorten = (text: string, max = 140) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+// A tester's own verdict on a task in Testing: pass it, or send it back with a reason. Testers answer
+// independently and may change their verdict while the round is open; the developer hears about each one.
+// When the last tester answers, the round ends: any send-back returns the task to In Progress, and if
+// everyone passed the developer may mark it Completed.
+tasksRouter.post(
+  "/:id/testing",
+  asyncHandler(async (request, response) => {
+    const actor = getActor(request);
+    const input = verdictSchema.parse(request.body);
+    const task = await findVisibleTask(actor, request.params.id);
+    const state = testingState(actor, task);
+    if (!state.inTesting) throw new HttpError(400, "This task isn't in Testing");
+    if (!state.canVerdict) throw new HttpError(403, "Only this task's testers can pass it or send it back");
+
+    const passed = input.result === "pass";
+    const reason = input.result === "send_back" ? input.reason : null;
+    const previous = verdictOf(task, actor.id);
+    // Passing twice changes nothing.
+    if (passed && previous === "passed") {
+      response.json({ success: true, data: serializeTask(task, actor) });
+      return;
+    }
+
+    // The round as it stands with this verdict.
+    const verdicts = [...task.testVerdicts.filter((item) => item.testerId !== actor.id), { testerId: actor.id, passed }];
+    const after = (id: string) => verdictOf({ testVerdicts: verdicts }, id);
+    const waitingFor = state.realTesters.filter((tester) => after(tester.id) === null);
+    const sentBackBy = state.realTesters.filter((tester) => after(tester.id) === "sent_back");
+    const roundOver = waitingFor.length === 0;
+    const backToDeveloper = roundOver && sentBackBy.length > 0;
+    const inProgress = backToDeveloper ? await findStatusByName(IN_PROGRESS_STATUS) : null;
+    if (backToDeveloper && !inProgress) throw new HttpError(500, `No "${IN_PROGRESS_STATUS}" status is configured`);
+
+    const label = `#${task.number} “${task.title}”`;
+    const answered = `${state.realTesters.length - waitingFor.length} of ${state.realTesters.length} testers answered`;
+    let message: string;
+    if (backToDeveloper) {
+      message = passed
+        ? `Testing finished on ${label}: sent back by ${names(sentBackBy)}. It's back In Progress.`
+        : `${actor.name} sent ${label} back from testing: ${shorten(reason!)}. Testing finished; it's back In Progress.`;
+    } else if (roundOver) {
+      message = `${state.realTesters.length > 1 ? "All testers" : actor.name} passed ${label}. You can mark it Completed.`;
+    } else {
+      message = passed
+        ? `${actor.name} passed testing on ${label} (${answered})`
+        : `${actor.name} sent ${label} back from testing: ${shorten(reason!)} (${answered})`;
+    }
+
+    const updated = await prisma.$transaction(async (transaction) => {
+      await transaction.testVerdict.upsert({
+        where: { taskId_testerId: { taskId: task.id, testerId: actor.id } },
+        create: { taskId: task.id, testerId: actor.id, passed, reason },
+        update: { passed, reason },
+      });
+      const history: Prisma.TaskHistoryCreateManyInput[] = [
+        { taskId: task.id, actorId: actor.id, field: "Testing", newValue: passed ? "Passed" : "Sent back" },
+      ];
+      if (reason) await transaction.comment.create({ data: { taskId: task.id, authorId: actor.id, body: `Sent back from testing: ${reason}` } });
+      if (backToDeveloper) {
+        // The round is over; the next one starts when the developer moves it to Testing again.
+        await transaction.testVerdict.deleteMany({ where: { taskId: task.id } });
+        await transaction.task.update({ where: { id: task.id }, data: { statusId: inProgress!.id } });
+        history.push({ taskId: task.id, actorId: actor.id, field: "Status", oldValue: task.status.name, newValue: inProgress!.name });
+      }
+      await transaction.taskHistory.createMany({ data: history });
+      await transaction.notification.createMany({
+        data: task.assignees
+          .filter((assignee) => assignee.id !== actor.id)
+          .map((assignee) => ({ userId: assignee.id, actorId: actor.id, taskId: task.id, message })),
+      });
+      return transaction.task.findUniqueOrThrow({ where: { id: task.id }, include: taskInclude });
+    });
     response.json({ success: true, data: serializeTask(updated, actor) });
   }),
 );

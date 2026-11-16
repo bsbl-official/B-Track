@@ -106,7 +106,27 @@ export type Task = {
   createdAt: string;
   updatedAt: string;
   access: TaskAccess;
+  testing: TaskTesting;
 };
+
+/**
+ * Testing sign-off, worked out by the server. Only real testers are listed (the "User" entry never counts).
+ * Each tester gives their own verdict this round. lock: "waiting" = in Testing until every tester answers;
+ * "passed" = every tester passed, it can only be completed; "untested" = not every tester has passed, so
+ * it can't be completed; null = no limits (no testers, or the viewer may override testing).
+ */
+export type TestVerdict = "passed" | "sent_back" | null;
+export type TaskTesting = {
+  testers: Array<Named & { verdict: TestVerdict }>;
+  allPassed: boolean;
+  lock: "waiting" | "passed" | "untested" | null;
+  // The viewer is one of the testers and the task is in Testing: they may give (or change) their verdict.
+  canVerdict: boolean;
+  // The viewer may override testing ("Override testing" permission).
+  override: boolean;
+};
+
+export type TestingVerdict = { result: "pass" } | { result: "send_back"; reason: string };
 
 export type Comment = { id: string; body: string; createdAt: string; author: Named };
 export type HistoryEntry = {
@@ -152,8 +172,18 @@ export type NewTask = {
 
 export type Dashboard = {
   scope: "all" | "mine";
-  cards: { assignedToMe: number; open: number; overdue: number; dueToday: number; deliveredRecently: number; total: number };
-  byStatus: Array<Colored & { count: number }>;
+  cards: {
+    assignedToMe: number;
+    assignedNew: number;
+    open: number;
+    overdue: number;
+    dueToday: number;
+    deliveredRecently: number;
+    deliveredSince: string;
+    completedTotal: number;
+    total: number;
+  };
+  byStatus: Array<Colored & { isClosed: boolean; count: number }>;
   deadlines: Array<{
     id: string;
     number: number;

@@ -69,7 +69,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
     - **Business Analyst:** create, view all, edit all, assign to anyone, set priority, set status, comment. Assignable, and `canTest`.
     - **Developer:** create, **view all**, set priority, set status, comment. **No "assign to anyone"**: a developer can only add or remove themselves as an assignee. Moving a task between people is for Admin and BA (owner's decision). Assignable, `canTest` too, and the default role.
     - **DBA** (database administrator): the same access as Developer (migration `20261026090000_dba_role` copied the Developer role's permissions and flags). Not the default role.
-    - **User:** no permissions, not assignable, `canTest`. Its one entry, "User" (`user-confirmation@b-track.invalid`, no password, so it can't sign in), stands for confirmation from the user's side in "Tested by".
+    - **User:** no permissions, not assignable, `canTest`. Its one entry, "User" (`user-confirmation@b-track.invalid`, no password, so it can't sign in), stands for confirmation from the user's side in "Tested by". It's flagged `User.isPlaceholder` (migration `20261110091000_placeholder_user`), because on the real data its role was changed to Business Analyst; code recognises it by the flag, never by role.
   - So "Assigned dev" lists developers and BAs, and "Tested by" lists developers, BAs and User. The owner explicitly wants BAs assignable (a BA may take a testing task), and wants developers and BAs to see every task.
 - **User:**
   - Profile: `firstName`, `lastName`, `name` ("First Last"), `email` (unique).
@@ -95,6 +95,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
     - New / In Progress / Testing ↔ Blocked
 
   There is no admin UI for statuses, types or priorities yet; they come from the seed or DB.
+- **TestVerdict** (`taskId`, `testerId`, `passed`, `reason`): a tester's own verdict in the current testing round (see Testing sign-off below).
 - **Attachment** (evidence): `fileName`, `mimeType`, `size`, `data Bytes`, `uploaderId`, deleted with the task.
   - Files are stored **in Postgres (bytea)**, max 10 MB each and 20 per task.
   - Allowed types: images (png, jpeg, gif, webp), PDF, text, CSV, ZIP, Word and Excel. **SVG and HTML are refused**, because they could run script from our origin.
@@ -107,8 +108,8 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 
 ### Business rules (the server is the source of truth)
 
-- **Permissions:** a person's effective permissions are the role's permissions, plus grants, minus revokes (`lib/permissions.ts`). Code checks **permission keys, never role names**. The keys are `task.create`, `task.view_all`, `task.edit_all`, `task.assign_any`, `task.set_priority`, `task.set_status`, `comment.create`, `dashboard.view_all`, `kpi.view`, `po.manage` and `access.manage`. `kpi.view` ("See KPI reports") was given by migration to roles that have `access.manage` (Admin).
-- **Dashboard scope:** `dashboard.view_all` (Admin only by default; grantable per person) shows team-wide metrics. Without it, `GET /api/dashboard` counts only tasks **assigned to** the person, and the page shows four cards (Assigned to me, Overdue, Due today, Completed) with no "Open tasks" card.
+- **Permissions:** a person's effective permissions are the role's permissions, plus grants, minus revokes (`lib/permissions.ts`). Code checks **permission keys, never role names**. The keys are `task.create`, `task.view_all`, `task.edit_all`, `task.assign_any`, `task.set_priority`, `task.set_status`, `task.override_testing`, `comment.create`, `dashboard.view_all`, `kpi.view`, `po.manage` and `access.manage`. `kpi.view` ("See KPI reports") was given by migration to roles that have `access.manage` (Admin).
+- **Dashboard scope:** `dashboard.view_all` (Admin only by default; grantable per person) shows team-wide metrics. Without it, `GET /api/dashboard` counts only tasks **assigned to** the person, and the page shows four cards (Assigned to me, Overdue, Due today, Completed) with no "Open tasks" card. "Assigned to me" adds two lines (how many are still New, how many started); "Completed" counts the **current calendar month** with a second line for the all-time total (the same set as the sheet's Completed tab). Every card and every "Tasks by status" row links to the sheet showing the same tasks (Completed → the Completed tab; others → `status=<id>`).
 - **Per-task access:** `lib/taskAccess.ts` works out what a person may do with a given task. The API returns it as `task.access` and the UI only hides or disables controls based on it.
   - A person's **own tasks** are the ones where they're **one of the assignees**, plus ones they created that **nobody else is assigned to**. Once a task is assigned to someone else it belongs to its assignees: the creator can only view it (and comment), like any colleague (owner's rule, 2026-10-03). On own tasks people can edit every field, change status (with `task.set_status`), set priority (with `task.set_priority`), **choose the tester**, and **change the assignees** (anyone with `task.assign_any`; otherwise they may only add or remove themselves, and other assignees stay, shown locked in the picker).
   - **Delete** is for the creator while the task is still theirs (no assignee other than themselves), plus `task.edit_all` (Admin, BA), so an assignee can't delete work handed to them. `task.edit_all` gives every right on every task.
@@ -123,6 +124,14 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - Every "Tested by" person being added must be an active user whose role has `canTest` (people already on the task may stay). The API takes `testerIds: string[]` on create and PATCH; history records the names joined, e.g. "A, B".
   - New tasks need at least one active PO. The status must be the initial one or one step from it.
   - Without `task.set_priority`, priority is left null.
+- **Testing sign-off** (`lib/testing.ts`, owner's rules 2026-11-10). Only real testers count; the "User" placeholder never blocks anything and can't give a verdict.
+  - When an **assignee** adds a real tester (create or PATCH), the task moves to Testing by itself. Testers set by someone else (e.g. a BA up front) don't move it.
+  - In Testing, **each tester gives their own verdict** (`POST /api/tasks/:id/testing` with `{result:"pass"}` or `{result:"send_back", reason}`); nobody's verdict blocks another's, and a tester may change theirs while the round is open. The assignees are notified of each verdict at once (a send-back's reason also becomes a comment), but nobody without `task.override_testing` can change the status until **every** real tester has answered (owner's choice: "wait for everyone").
+  - When the last tester answers: any send-back → the task returns to In Progress; all passed → the developer can only mark it Completed (it doesn't complete itself). If a pending tester leaves and everyone left has answered with a send-back, it also returns to In Progress. From any status, a task with real testers can't be completed without every pass.
+  - Verdicts are cleared on every status change except Testing → closed, so each round (after a send-back or a reopen) starts fresh.
+  - A developer can't take real testers off; a tester may take themselves off; `task.override_testing` (Admin, by migration `20261110090000_testing_signoff`; grantable) lifts every limit. `task.edit_all` alone does **not**.
+  - Tasks expose `testing: { testers [{id,name,verdict: "passed"|"sent_back"|null}], allPassed, lock: "waiting"|"passed"|"untested"|null, canVerdict, override }`. History rows use field "Testing" ("Passed" / "Sent back"); a send-back also writes Status Testing → In Progress, which the KPI report counts as failed testing.
+  - UI: the sheet's Status cell reads "Testing 1/2" (testers who have answered), is locked while waiting (tooltip names who it waits for and who sent it back), and offers testers "✓ Pass testing" / "↩ Send back…"; Tested by shows other testers locked; the drawer has a Testing card with each tester's verdict (Passed / Sent back / Testing…) and Pass / Send back / Take me off testing.
 - **Daily (routine) tasks** (`type.isRoutine`): no probable date, so no gap days, never overdue / due today, no deadline reminders. The API drops a date sent on create and refuses one on PATCH; switching a task to Daily clears its date without asking for a reason. The sheet shows a "Daily" tag in Probable date. The KPI report leaves them out of completions (time to finish, on time) and date changes.
 - **Notifications:** assigning a task notifies each newly added assignee, and adding people to "Tested by" (on create or PATCH) notifies each newly added tester. Nobody is notified about their own change.
 - **KPI report** (`lib/kpi.ts`; no scores, by the owner's choice): replays each task's Status, Assignee and Probable date history into timelines and credits events to whoever held the task at the time; a shared task credits **each** assignee (so the 2+ people overview sums can count a shared task more than once).
@@ -161,6 +170,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 | `GET /api/dashboard` | metric cards, status counts, deadlines, activity |
 | `GET /api/kpi?from=&to=&people=&pos=` | developer KPI report (`kpi.view`); comma-separated ids; `pos` keeps only tasks for those POs (and PO shares count only them) |
 | `GET/POST /api/tasks`, `GET/PATCH/DELETE /api/tasks/:id`, `POST /api/tasks/:id/comments` | tasks (PATCH records history) |
+| `POST /api/tasks/:id/testing` | a tester's verdict: `{result:"pass"}` or `{result:"send_back", reason}` |
 | `GET/POST /api/clients`, `PATCH /api/clients/:id` | POs (`po.manage`) |
 | `GET /api/notifications`, `POST /:id/read`, `POST /read-all` | notifications |
 | `GET /api/access`, roles CRUD, `POST/PATCH /api/access/users[/:id]`, `POST /users/:id/reset-password` | access management (`access.manage`) |
@@ -198,6 +208,8 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - Titles with evidence show a paperclip count. The drawer's Evidence gallery shows thumbnails and files, with add (paste, drop, browse) and remove.
 - **Other components:**
   - `PoPicker`: searchable multi-select list (a search box at the top, focused on open; Enter ticks the first match) for POs, and with `required={false}` for assignees (Assigned dev) and testers (Tested by) too, with `locked` ids that show ticked but can't change, rendered on `document.body` through a portal so form and table CSS can't leak into it. It commits when closed.
+  - `NotificationBell` polls every 15 s; new notifications play a Web Audio chime and, once allowed, show a system notification (`sound.ts`). `NotifyPrompt` asks to allow browser notifications after each sign-in (per browser session) until they're allowed; a Sound on/off switch sits in the bell panel.
+  - `Testing.tsx`: the testing sign-off UI (status choices, `SendBackDialog`, the drawer's `TestingPanel`).
   - `TaskDrawer`: details, comments, history, plus Edit (title, PO, type, Date, Probable date; needs `access.edit`) and Delete (needs `access.delete`, with a confirm).
   - `Logo.tsx`: `Logo` and `Brand` (logo plus "B-Track" wordmark).
   - `NavIcon`: sidebar line icons.

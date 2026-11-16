@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api";
 import { errorMessage, formatDate, timeAgo } from "../format";
 import type { Dashboard, Profile } from "../types";
@@ -25,13 +25,6 @@ function StatIcon({ name }: { name: string }) {
   );
 }
 
-// Local date N days ago as "YYYY-MM-DD", the format the sheet filters use.
-function daysAgo(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function deadlineLabel(gapDays: number | null) {
   if (gapDays === null) return "";
   if (gapDays > 0) return `${gapDays}d late`;
@@ -56,17 +49,38 @@ export function DashboardPage({ profile }: { profile: Profile }) {
   // scope the numbers cover only the person's assigned tasks, so the sheet filters to them too.
   const mine: Record<string, string> = teamWide ? {} : { assignee: "me" };
   const sheetLink = (params: Record<string, string>) => `#/tasks?${new URLSearchParams(params)}`;
-  const cards = data
+  const cards: Array<{ key: string; caption: string; label: string; value: number; detail?: ReactNode; tone: string; href: string; foot: string }> = data
     ? [
-        { key: "assigned", caption: "ON YOUR PLATE", label: "Assigned to me", value: data.cards.assignedToMe, tone: "mine", href: sheetLink({ view: "open", assignee: "me" }), foot: "Open tasks assigned to you" },
+        {
+          key: "assigned",
+          caption: "ON YOUR PLATE",
+          label: "Assigned to me",
+          value: data.cards.assignedToMe,
+          detail: <><span><b>{data.cards.assignedNew}</b> new</span><span><b>{data.cards.assignedToMe - data.cards.assignedNew}</b> started</span></>,
+          tone: "mine",
+          href: sheetLink({ view: "open", assignee: "me" }),
+          foot: "Open tasks assigned to you",
+        },
         ...(teamWide
           ? [{ key: "open", caption: "ALL WORK", label: "Open tasks", value: data.cards.open, tone: "blue", href: sheetLink({ view: "open" }), foot: `${data.cards.total} tasks in total` }]
           : []),
         { key: "overdue", caption: "NEEDS ATTENTION", label: "Overdue", value: data.cards.overdue, tone: "red", href: sheetLink({ view: "overdue", ...mine }), foot: teamWide ? "Past the probable date" : "Your tasks past the probable date" },
         { key: "soon", caption: "TODAY", label: "Due today", value: data.cards.dueToday, tone: "amber", href: sheetLink({ view: "dueToday", ...mine }), foot: teamWide ? "Probable date is today" : "Your tasks, probable date today" },
-        { key: "done", caption: "WRAPPED UP", label: "Completed", value: data.cards.deliveredRecently, tone: "green", href: sheetLink({ view: "all", completedFrom: daysAgo(30), ...mine }), foot: teamWide ? "In the last 30 days" : "By you in the last 30 days" },
+        {
+          key: "done",
+          caption: "WRAPPED UP",
+          label: "Completed",
+          value: data.cards.deliveredRecently,
+          detail: <><span><b>{data.cards.deliveredRecently}</b> in the current month</span><span><b>{data.cards.completedTotal}</b> in total</span></>,
+          tone: "green",
+          href: sheetLink({ view: "all", completedFrom: data.cards.deliveredSince, ...mine }),
+          foot: teamWide ? "Completed tasks" : "Tasks you completed",
+        },
       ]
     : [];
+  // Each status row opens the sheet on those tasks; closed statuses use the sheet's Completed tab.
+  const statusLink = (status: { id: string; isClosed: boolean }) =>
+    sheetLink(status.isClosed ? { view: "completed", ...mine } : { view: "all", status: status.id, ...mine });
 
   return (
     <div className="dashboard">
@@ -95,6 +109,7 @@ export function DashboardPage({ profile }: { profile: Profile }) {
                 </div>
                 <strong className="stat-value">{card.value}</strong>
                 <span className="stat-label">{card.label}</span>
+                {card.detail && <span className="stat-detail">{card.detail}</span>}
                 <div className="stat-foot"><span className="muted-dot" /> {card.foot}<span className="stat-go" aria-hidden="true">View →</span></div>
               </a>
             ))}
@@ -108,11 +123,13 @@ export function DashboardPage({ profile }: { profile: Profile }) {
               <ul className="status-bars">
                 {data.byStatus.map((status) => (
                   <li key={status.id}>
-                    <span className="status-name">{status.name}</span>
-                    <span className="status-track">
-                      <span className="status-fill" style={{ width: `${(status.count / maxStatus) * 100}%`, background: status.color }} />
-                    </span>
-                    <span className="status-count">{status.count}</span>
+                    <a className="status-row" href={statusLink(status)} title={`Show ${status.name.toLowerCase()} tasks in the task sheet`}>
+                      <span className="status-name">{status.name}</span>
+                      <span className="status-track">
+                        <span className="status-fill" style={{ width: `${(status.count / maxStatus) * 100}%`, background: status.color }} />
+                      </span>
+                      <span className="status-count">{status.count}</span>
+                    </a>
                   </li>
                 ))}
               </ul>

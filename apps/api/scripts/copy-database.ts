@@ -51,6 +51,7 @@ async function main() {
   // Explicit issue numbers don't move the counter; continue after the highest one.
   await target.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Task"', 'number'), COALESCE((SELECT MAX("number") FROM "Task"), 1))`);
 
+  await copy("Test verdicts", await source.testVerdict.findMany(), (data) => target.testVerdict.createMany({ data }));
   await copy("Attachments", await source.attachment.findMany(), (data) => target.attachment.createMany({ data }), 5);
   await copy("Comments", await source.comment.findMany(), (data) => target.comment.createMany({ data }));
   await copy("History", await source.taskHistory.findMany(), (data) => target.taskHistory.createMany({ data }));

@@ -5,6 +5,7 @@ import { navigate } from "../router";
 import { PERMISSIONS, type Meta, type Named, type NewTask, type Profile, type Task, type TaskUpdate } from "../types";
 import { NewTaskModal } from "./NewTaskModal";
 import { PoChips, PoPicker } from "./PoPicker";
+import { PASS_OPTION, SEND_BACK_OPTION, SendBackDialog, statusChoices } from "./Testing";
 import { FilterBar, activeFilterChips, defaultFilters, emptyFilters, matchesFilters, type Filters } from "./TaskFilters";
 import { TaskDrawer } from "./TaskDrawer";
 import { TypeIcon } from "./TypeIcon";
@@ -107,7 +108,7 @@ export function TaskSheet({
   meta: Meta;
   profile: Profile;
   openTaskId: string | null;
-  // A view and filters to open on, e.g. from a dashboard card: view=overdue&assignee=me&completedFrom=YYYY-MM-DD.
+  // A view and filters to open on, e.g. from the dashboard: view=overdue&assignee=me&completedFrom=YYYY-MM-DD&status=<id>.
   preset: URLSearchParams;
   onMetaChanged: () => void;
 }) {
@@ -116,7 +117,12 @@ export function TaskSheet({
   const [view, setView] = useState<View>(presetView ?? "open");
   const [filters, setFilters] = useState<Filters>(() =>
     presetView
-      ? { ...emptyFilters, assigneeId: preset.get("assignee") === "me" ? profile.id : "", completedFrom: preset.get("completedFrom") ?? "" }
+      ? {
+          ...emptyFilters,
+          assigneeId: preset.get("assignee") === "me" ? profile.id : "",
+          completedFrom: preset.get("completedFrom") ?? "",
+          statusId: preset.get("status") ?? "",
+        }
       : defaultFilters(profile),
   );
   const [shares, setShares] = useState(readShares);
@@ -136,6 +142,7 @@ export function TaskSheet({
   const [toast, setToast] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [rescheduling, setRescheduling] = useState<{ task: Task; to: string | null } | null>(null);
+  const [sendingBack, setSendingBack] = useState<Task | null>(null);
 
   const permissions = profile.permissions;
   const canCreate = hasPermission(permissions, PERMISSIONS.taskCreate);
@@ -163,6 +170,17 @@ export function TaskSheet({
     async (id: string, update: TaskUpdate) => {
       try {
         replaceTask(await api.updateTask(id, update));
+      } catch (error) {
+        showError(error);
+      }
+    },
+    [replaceTask, showError],
+  );
+
+  const passTesting = useCallback(
+    async (id: string) => {
+      try {
+        replaceTask(await api.testingVerdict(id, { result: "pass" }));
       } catch (error) {
         showError(error);
       }
@@ -375,6 +393,8 @@ export function TaskSheet({
                 profile={profile}
                 onUpdate={updateTask}
                 onReschedule={(task, to) => setRescheduling({ task, to })}
+                onPass={passTesting}
+                onSendBack={setSendingBack}
                 onOpen={() => openTask(task.id)}
               />
             ))}
@@ -401,6 +421,17 @@ export function TaskSheet({
           onSave={async (comment) => {
             replaceTask(await api.updateTask(rescheduling.task.id, { expectedDeliveryDate: rescheduling.to, comment }));
             setRescheduling(null);
+          }}
+        />
+      )}
+
+      {sendingBack && (
+        <SendBackDialog
+          task={sendingBack}
+          onCancel={() => setSendingBack(null)}
+          onSave={async (reason) => {
+            replaceTask(await api.testingVerdict(sendingBack.id, { result: "send_back", reason }));
+            setSendingBack(null);
           }}
         />
       )}
@@ -475,6 +506,7 @@ function CellSelect({
   allowEmpty,
   disabled,
   className = "",
+  title,
 }: {
   value: string;
   label: string;
@@ -484,6 +516,7 @@ function CellSelect({
   allowEmpty?: string;
   disabled?: boolean;
   className?: string;
+  title?: string;
 }) {
   return (
     <select
@@ -493,6 +526,7 @@ function CellSelect({
       onChange={(event) => onChange(event.target.value)}
       aria-label={label}
       disabled={disabled}
+      title={title}
     >
       {allowEmpty !== undefined && <option value="">{allowEmpty}</option>}
       {options.map((option) => (
@@ -622,6 +656,8 @@ function TaskRow({
   profile,
   onUpdate,
   onReschedule,
+  onPass,
+  onSendBack,
   onOpen,
 }: {
   task: Task;
@@ -629,15 +665,17 @@ function TaskRow({
   profile: Profile;
   onUpdate: (id: string, update: TaskUpdate) => void;
   onReschedule: (task: Task, to: string | null) => void;
+  onPass: (id: string) => void;
+  onSendBack: (task: Task) => void;
   onOpen: () => void;
 }) {
   const { access } = task;
   const editable = access.edit;
-  const currentStatus = meta.statuses.find((status) => status.id === task.statusId);
-  // Only the current status and the ones the workflow allows next.
-  const statusOptions = meta.statuses.filter(
-    (status) => status.id === task.statusId || currentStatus?.nextStatusIds.includes(status.id),
-  );
+  // The current status, the ones the workflow allows next (narrowed by testing sign-off), and a
+  // tester's Pass / Send back.
+  const status = statusChoices(task, meta, profile.id);
+  // Without "Override testing", real testers other than yourself stay on the task.
+  const lockedTesters = task.testing.override ? [] : task.testing.testers.filter((tester) => tester.id !== profile.id).map((tester) => tester.id);
   // Developers and Business Analysts (roles with "Can test tasks").
   const testers: Named[] = meta.users.filter((user) => user.canTest);
   // People already testing the task stay listed even if they can no longer be picked.
@@ -688,7 +726,15 @@ function TaskRow({
       </td>
       <td>
         {access.setTester ? (
-          <PoPicker label="Tested by" placeholder="—" required={false} options={testerOptions} value={task.testers.map((tester) => tester.id)} onChange={(testerIds) => update({ testerIds })} />
+          <PoPicker
+            label="Tested by"
+            placeholder="—"
+            required={false}
+            options={testerOptions}
+            value={task.testers.map((tester) => tester.id)}
+            locked={lockedTesters}
+            onChange={(testerIds) => update({ testerIds })}
+          />
         ) : (
           <PoChips pos={task.testers} placeholder="—" />
         )}
@@ -710,7 +756,16 @@ function TaskRow({
       </td>
       <td className="col-gap"><GapCell task={task} /></td>
       <td>
-        <CellSelect label="Status" value={task.statusId} color={task.status.color} options={statusOptions} disabled={!access.setStatus} onChange={(statusId) => update({ statusId })} />
+        <CellSelect
+          label="Status"
+          value={task.statusId}
+          color={task.status.color}
+          options={status.options}
+          disabled={status.disabled}
+          title={status.title}
+          className={task.testing.lock === "waiting" ? "status-waiting" : ""}
+          onChange={(value) => (value === PASS_OPTION ? onPass(task.id) : value === SEND_BACK_OPTION ? onSendBack(task) : update({ statusId: value }))}
+        />
       </td>
     </tr>
   );

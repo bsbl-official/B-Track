@@ -1,4 +1,5 @@
 import type {
+  TestingVerdict,
   AccessData,
   AccessRole,
   AccessUser,
@@ -79,6 +80,8 @@ export const api = {
   createTask: (task: NewTask) => request<Task>("/tasks", send("POST", task)),
   updateTask: (id: string, update: TaskUpdate) => request<Task>(`/tasks/${id}`, send("PATCH", update)),
   deleteTask: (id: string) => request<void>(`/tasks/${id}`, send("DELETE")),
+  // A tester passes the task or sends it back to In Progress.
+  testingVerdict: (id: string, verdict: TestingVerdict) => request<Task>(`/tasks/${id}/testing`, send("POST", verdict)),
   addComment: (taskId: string, body: string) => request<Comment>(`/tasks/${taskId}/comments`, send("POST", { body })),
   // The file itself is the request body; the server reads its type from Content-Type.
   uploadAttachment: (taskId: string, file: File) =>
