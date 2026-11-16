@@ -468,8 +468,8 @@ tasksRouter.patch(
       data.reportedDate = reportedDate;
       record("Date", formatDateOnly(task.reportedDate), formatDateOnly(reportedDate));
     }
-    if (isRoutine && input.expectedDeliveryDate) throw new HttpError(400, "Daily tasks don't have a probable date");
-    // Daily (routine) tasks have none, so making a task daily clears its probable date.
+    if (isRoutine && input.expectedDeliveryDate) throw new HttpError(400, "Daily and weekly tasks don't have a probable date");
+    // Routine (daily, weekly) tasks have none, so making a task routine clears its probable date.
     const expectedDeliveryDate = isRoutine
       ? null
       : input.expectedDeliveryDate === undefined

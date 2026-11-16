@@ -54,7 +54,7 @@ export type Status = Colored & {
   nextStatusIds: string[];
 };
 export type Priority = Colored & { rank: number };
-// isRoutine: daily work ("Daily") with no probable date or gap days.
+// isRoutine: repeating work ("Daily", "Weekly") with no probable date or gap days.
 export type TaskType = Colored & { sortOrder: number; isRoutine: boolean };
 export type MetaUser = Named & { roleName: string; isAssignable: boolean; canTest: boolean };
 

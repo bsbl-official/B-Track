@@ -5,6 +5,7 @@ import { PERMISSIONS, type Meta, type NewTask, type Profile, type Task } from ".
 import { EvidencePicker, evidenceProblem, filesFromPaste } from "./Evidence";
 import { PoPicker } from "./PoPicker";
 import { TagEditor, tagsProblem } from "./Tags";
+import { TypePicker } from "./TypePicker";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -72,8 +73,9 @@ export function NewTaskModal({
   const titleInput = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const change = (update: Partial<NewTask>) => setDraft((current) => ({ ...current, ...update }));
-  // Daily (routine) tasks have no probable date or gap days.
-  const isRoutine = meta.types.find((type) => type.id === draft.typeId)?.isRoutine ?? false;
+  // Routine (daily, weekly) tasks have no probable date or gap days.
+  const draftType = meta.types.find((type) => type.id === draft.typeId);
+  const isRoutine = draftType?.isRoutine ?? false;
 
   useEffect(() => {
     titleInput.current?.focus();
@@ -199,22 +201,7 @@ export function NewTaskModal({
 
               <div className="field">
                 <span>Type <em>optional</em></span>
-                <div className="segmented" role="radiogroup" aria-label="Type">
-                  {meta.types.map((type) => (
-                    <button
-                      key={type.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={draft.typeId === type.id}
-                      className={draft.typeId === type.id ? "selected" : ""}
-                      style={{ "--pill": type.color } as CSSProperties}
-                      onClick={() => change({ typeId: draft.typeId === type.id ? null : type.id })}
-                    >
-                      <span className="seg-dot" aria-hidden="true" />
-                      {type.name}
-                    </button>
-                  ))}
-                </div>
+                <TypePicker types={meta.types} value={draft.typeId} onChange={(typeId) => change({ typeId })} />
               </div>
 
               <label className="span-2">
@@ -292,8 +279,8 @@ export function NewTaskModal({
               {isRoutine ? (
                 <div className="field">
                   <span>Probable date</span>
-                  <input value="None: done every day" disabled />
-                  <small className="gap-preview none">Daily tasks have no gap days</small>
+                  <input value={`None: ${draftType?.name.toLowerCase()} task`} disabled />
+                  <small className="gap-preview none">{draftType?.name} tasks have no gap days</small>
                 </div>
               ) : (
                 <label>

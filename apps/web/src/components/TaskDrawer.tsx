@@ -7,6 +7,7 @@ import { EvidenceGallery } from "./Evidence";
 import { PoPicker } from "./PoPicker";
 import { TagEditor, TagList, tagInputsOf, tagsProblem } from "./Tags";
 import { SendBackDialog, TestingPanel } from "./Testing";
+import { TypePicker } from "./TypePicker";
 
 // The fields that are read-only in the sheet and edited here.
 type Draft = { title: string; clientIds: string[]; typeId: string | null; reportedDate: string; expectedDeliveryDate: string | null; tags: TagInput[] };
@@ -84,8 +85,9 @@ export function TaskDrawer({
     setDateReason("");
     setEditError(null);
   };
-  // Daily (routine) tasks have no probable date; making a task daily clears it, no reason needed.
-  const draftIsRoutine = draft !== null && (meta.types.find((type) => type.id === draft.typeId)?.isRoutine ?? false);
+  // Routine (daily, weekly) tasks have no probable date; making a task routine clears it, no reason needed.
+  const draftType = draft !== null ? meta.types.find((type) => type.id === draft.typeId) : undefined;
+  const draftIsRoutine = draftType?.isRoutine ?? false;
   // Moving a probable date that was already set needs a reason (saved as a comment).
   const reschedulingDate =
     task !== null && draft !== null && !draftIsRoutine && task.expectedDeliveryDate !== null && draft.expectedDeliveryDate !== task.expectedDeliveryDate;
@@ -278,22 +280,7 @@ export function TaskDrawer({
               </div>
               <div className="field span-2">
                 <span>Type</span>
-                <div className="segmented" role="radiogroup" aria-label="Type">
-                  {meta.types.map((type) => (
-                    <button
-                      key={type.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={draft.typeId === type.id}
-                      className={draft.typeId === type.id ? "selected" : ""}
-                      style={{ "--pill": type.color } as CSSProperties}
-                      onClick={() => changeDraft({ typeId: draft.typeId === type.id ? null : type.id })}
-                    >
-                      <span className="seg-dot" aria-hidden="true" />
-                      {type.name}
-                    </button>
-                  ))}
-                </div>
+                <TypePicker types={meta.types} value={draft.typeId} onChange={(typeId) => changeDraft({ typeId })} />
               </div>
               <div className="field span-2">
                 <span>Tags <em>optional</em></span>
@@ -305,8 +292,8 @@ export function TaskDrawer({
               </label>
               {draftIsRoutine ? (
                 <div className="field">
-                  <span>Probable date <em>none for daily tasks</em></span>
-                  <input value={task.expectedDeliveryDate ? "Will be cleared" : "None: done every day"} disabled />
+                  <span>Probable date <em>none for {draftType?.name.toLowerCase()} tasks</em></span>
+                  <input value={task.expectedDeliveryDate ? "Will be cleared" : `None: ${draftType?.name.toLowerCase()} task`} disabled />
                 </div>
               ) : (
                 <label>
@@ -349,7 +336,7 @@ export function TaskDrawer({
                     <dt>Probable date</dt>
                     <dd>
                       {task.type?.isRoutine ? (
-                        <span className="routine-tag">Daily</span>
+                        <span className="routine-tag" style={{ "--pill": task.type.color } as CSSProperties}>{task.type.name}</span>
                       ) : task.expectedDeliveryDate ? (
                         formatDate(task.expectedDeliveryDate)
                       ) : (

@@ -114,13 +114,13 @@ model Client {
   createdAt DateTime @default(now())
 }
 
-// Feature / Bug / Daily, configurable.
+// Feature / Bug / Daily / Weekly, configurable.
 model TaskType {
   id        String  @id @default(cuid())
   name      String  @unique
   color     String
   sortOrder Int     @default(0)
-  // Routine work done every day ("Daily"): no probable date, gap days or deadlines.
+  // Routine work done every day or week ("Daily", "Weekly"): no probable date, gap days or deadlines.
   isRoutine Boolean @default(false)
   tasks     Task[]
 }

@@ -501,7 +501,7 @@ function compareTasks(a: Task, b: Task, key: SortKey, statusById: Map<string, { 
 // Sheet rule: today minus probable date, blank once completed.
 function GapCell({ task }: { task: Task }) {
   const gap = task.gapDays;
-  if (gap === null) return <span className="gap-badge none" title={task.type?.isRoutine ? "Daily task: no gap days" : undefined}>—</span>;
+  if (gap === null) return <span className="gap-badge none" title={task.type?.isRoutine ? `${task.type.name} task: no gap days` : undefined}>—</span>;
   const tone = gap > 0 ? "late" : gap >= -DUE_SOON_DAYS ? "soon" : "left";
   const hint = gap > 0 ? `${gap} day${gap === 1 ? "" : "s"} past the probable date` : gap === 0 ? "Due today" : `${-gap} day${gap === -1 ? "" : "s"} to spare`;
   return <span className={`gap-badge ${tone}`} title={hint}>{gap}</span>;
@@ -751,8 +751,8 @@ function TaskRow({
       </td>
       <td>
         {task.type?.isRoutine ? (
-          // Daily tasks have no probable date (and so no gap days).
-          <span className="routine-tag" title="Daily task: no probable date">Daily</span>
+          // Routine (daily, weekly) tasks have no probable date (and so no gap days).
+          <span className="routine-tag" style={{ "--pill": task.type.color } as CSSProperties} title={`${task.type.name} task: no probable date`}>{task.type.name}</span>
         ) : (
           <DateCell
             label="Probable date"

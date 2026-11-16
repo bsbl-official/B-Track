@@ -21,6 +21,15 @@ function Glyph({ name }: { name: string }) {
       </svg>
     );
   }
+  if (key.includes("weekly")) {
+    // A calendar page.
+    return (
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="2.5" y="3.5" width="11" height="10" rx="1.8" />
+        <path d="M2.5 6.8h11M5.5 2v3M10.5 2v3M5.2 9.6h5.6" />
+      </svg>
+    );
+  }
   if (key.includes("feature")) {
     return (
       <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -32,7 +41,7 @@ function Glyph({ name }: { name: string }) {
 }
 
 /**
- * Bug / Feature / Daily shown as an icon before the issue title. When editable, a transparent native
+ * Bug / Feature / Daily / Weekly shown as an icon before the issue title. When editable, a transparent native
  * <select> sits on top, so a click opens the normal dropdown to change or clear it.
  */
 export function TypeIcon({
@@ -42,7 +51,8 @@ export function TypeIcon({
   onChange,
 }: {
   type: Colored | null;
-  types: Colored[];
+  // Routine types (Daily, Weekly) are grouped under "Routine" in the dropdown.
+  types: Array<Colored & { isRoutine?: boolean }>;
   disabled?: boolean;
   onChange?: (typeId: string | null) => void;
 }) {
@@ -55,7 +65,12 @@ export function TypeIcon({
       {!disabled && onChange && (
         <select value={type?.id ?? ""} onChange={(event) => onChange(event.target.value || null)} aria-label={`Type: ${label}`}>
           <option value="">No type</option>
-          {types.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+          {types.filter((option) => !option.isRoutine).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+          {types.some((option) => option.isRoutine) && (
+            <optgroup label="Routine">
+              {types.filter((option) => option.isRoutine).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+            </optgroup>
+          )}
         </select>
       )}
       {(disabled || !onChange) && <span className="visually-hidden">{label}</span>}
