@@ -122,6 +122,7 @@ export function TaskSheet({
           assigneeId: preset.get("assignee") === "me" ? profile.id : "",
           completedFrom: preset.get("completedFrom") ?? "",
           statusId: preset.get("status") ?? "",
+          tagId: preset.get("tag") ?? "",
         }
       : defaultFilters(profile),
   );
@@ -188,9 +189,15 @@ export function TaskSheet({
     [replaceTask, showError],
   );
 
+  // A tag typed on the spot is created with the task; reload the list so it's suggested from now on.
+  const noteNewTags = (task: Task) => {
+    if (task.tags.some((tag) => !meta.tags.some((known) => known.id === tag.id))) onMetaChanged();
+  };
+
   const createTask = async (task: NewTask) => {
     const created = await api.createTask(task);
     setTasks((current) => [created, ...(current ?? [])]);
+    noteNewTags(created);
     return created;
   };
 
@@ -442,7 +449,10 @@ export function TaskSheet({
           meta={meta}
           currentUserId={profile.id}
           onClose={() => openTask(null)}
-          onTaskChanged={replaceTask}
+          onTaskChanged={(task) => {
+            replaceTask(task);
+            noteNewTags(task);
+          }}
           onDeleted={removeTask}
           onError={(error) => {
             showError(error);

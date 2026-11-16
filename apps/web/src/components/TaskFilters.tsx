@@ -8,6 +8,8 @@ export type Filters = {
   typeId: string;
   priorityId: string;
   statusId: string;
+  // "" = all, "none" = no tags, otherwise a tag id
+  tagId: string;
   // "" = all, "unassigned"/"none" = empty, otherwise a user id
   assigneeId: string;
   testedById: string;
@@ -25,6 +27,7 @@ export const emptyFilters: Filters = {
   typeId: "",
   priorityId: "",
   statusId: "",
+  tagId: "",
   assigneeId: "",
   testedById: "",
   reportedFrom: "",
@@ -51,10 +54,20 @@ function inRange(value: string | null, from: string, to: string): boolean {
   return (!from || value >= from) && (!to || value <= to);
 }
 
+// Search also finds tasks by a tag's name or the tables, files and screens listed under it (e.g. CR_INFO).
+function matchesSearch(task: Task, search: string): boolean {
+  return (
+    task.title.toLowerCase().includes(search) ||
+    String(task.number) === search ||
+    task.tags.some((tag) => tag.name.toLowerCase().includes(search) || tag.details.some((detail) => detail.toLowerCase().includes(search)))
+  );
+}
+
 export function matchesFilters(task: Task, filters: Filters): boolean {
   const search = filters.search.trim().toLowerCase().replace(/^#/, "");
   return (
-    (!search || task.title.toLowerCase().includes(search) || String(task.number) === search) &&
+    (!search || matchesSearch(task, search)) &&
+    (!filters.tagId || (filters.tagId === "none" ? task.tags.length === 0 : task.tags.some((tag) => tag.id === filters.tagId))) &&
     (!filters.clientId || task.clients.some((client) => client.id === filters.clientId)) &&
     (!filters.typeId || (filters.typeId === "none" ? task.typeId === null : task.typeId === filters.typeId)) &&
     (!filters.priorityId || (filters.priorityId === "none" ? task.priorityId === null : task.priorityId === filters.priorityId)) &&
@@ -82,6 +95,7 @@ export function activeFilterChips(filters: Filters, meta: Meta): Chip[] {
   if (filters.typeId) chips.push({ label: `Type: ${name(meta.types, filters.typeId, "None")}`, clear: { typeId: "" } });
   if (filters.priorityId) chips.push({ label: `Priority: ${name(meta.priorities, filters.priorityId, "None")}`, clear: { priorityId: "" } });
   if (filters.statusId) chips.push({ label: `Status: ${name(meta.statuses, filters.statusId, "")}`, clear: { statusId: "" } });
+  if (filters.tagId) chips.push({ label: `Tag: ${name(meta.tags, filters.tagId, "No tags")}`, clear: { tagId: "" } });
   if (filters.assigneeId) chips.push({ label: `Assigned dev: ${name(meta.users, filters.assigneeId, "Unassigned")}`, clear: { assigneeId: "" } });
   if (filters.testedById) chips.push({ label: `Tested by: ${name(meta.users, filters.testedById, "Not yet")}`, clear: { testedById: "" } });
   if (filters.reportedFrom || filters.reportedTo) chips.push({ label: `Date: ${rangeText(filters.reportedFrom, filters.reportedTo)}`, clear: { reportedFrom: "", reportedTo: "" } });
@@ -152,7 +166,7 @@ export function FilterBar({
     <div className="filter-tools" ref={anchor}>
       <div className="sheet-search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
-        <input type="search" placeholder="Search title or issue no" value={filters.search} onChange={(event) => onChange({ search: event.target.value })} aria-label="Search tasks" />
+        <input type="search" placeholder="Search title, issue no, tag or table…" title="Finds tasks by title, issue number, tag, or a table, form file or screen listed under a tag" value={filters.search} onChange={(event) => onChange({ search: event.target.value })} aria-label="Search tasks" />
       </div>
       <button type="button" className={`filter-toggle ${count ? "active" : ""}`} onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5h17l-6.5 8v5.5l-4 2V13z" /></svg>
@@ -170,6 +184,7 @@ export function FilterBar({
                 {select("Type", "typeId", meta.types, { value: "none", label: "No type" })}
                 {select("Priority", "priorityId", meta.priorities, { value: "none", label: "No priority" })}
                 {select("Status", "statusId", meta.statuses)}
+                {select("Tag", "tagId", meta.tags, { value: "none", label: "No tags" })}
               </div>
             </section>
             <section>

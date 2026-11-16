@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   dashboardViewAll: "dashboard.view_all",
   kpiView: "kpi.view",
   poManage: "po.manage",
+  tagManage: "tag.manage",
   accessManage: "access.manage",
 } as const;
 
@@ -57,12 +58,32 @@ export type Priority = Colored & { rank: number };
 export type TaskType = Colored & { sortOrder: number; isRoutine: boolean };
 export type MetaUser = Named & { roleName: string; isAssignable: boolean; canTest: boolean };
 
+/**
+ * A tag and the details it asks for. detailLabel null = a plain tag; otherwise every task with the tag lists
+ * at least one detail (e.g. "Tables": CR_INFO), each ending in one of detailExtensions when there are any,
+ * and in capitals when detailUppercase.
+ */
+export type Tag = Colored & {
+  detailLabel: string | null;
+  detailHint: string | null;
+  detailExtensions: string[];
+  detailUppercase: boolean;
+};
+// A tag on a task, with what was listed for it.
+export type TaskTag = Colored & { detailLabel: string | null; details: string[] };
+// Tags are sent by name: an existing tag, or a new plain one created with the task.
+export type TagInput = { name: string; details: string[] };
+export type ManagedTag = Tag & { isActive: boolean; createdAt: string; _count: { tasks: number } };
+export type TagSettings = Partial<Omit<Tag, "id"> & { isActive: boolean }>;
+
 export type Meta = {
   users: MetaUser[];
   clients: Colored[];
   types: TaskType[];
   priorities: Priority[];
   statuses: Status[];
+  // Active tags only.
+  tags: Tag[];
 };
 
 // What the signed-in user may do with a task, decided by the API.
@@ -96,6 +117,7 @@ export type Task = {
   assignees: Named[];
   // "Tested by": any number of people (none yet = empty).
   testers: Named[];
+  tags: TaskTag[];
   reportedDate: string;
   expectedDeliveryDate: string | null;
   deliveredDate: string | null;
@@ -154,6 +176,7 @@ export type TaskUpdate = Partial<{
   expectedDeliveryDate: string | null;
   deliveredDate: string | null;
   comment: string;
+  tags: TagInput[];
 }>;
 
 export type NewTask = {
@@ -168,6 +191,7 @@ export type NewTask = {
   reportedDate: string;
   expectedDeliveryDate: string | null;
   comment?: string;
+  tags: TagInput[];
 };
 
 export type Dashboard = {

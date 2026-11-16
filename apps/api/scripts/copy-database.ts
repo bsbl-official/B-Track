@@ -31,6 +31,9 @@ async function main() {
   await copy("Priorities", await source.priority.findMany(), (data) => target.priority.createMany({ data }));
   await copy("Statuses", await source.status.findMany(), (data) => target.status.createMany({ data }));
   await copy("Status transitions", await source.statusTransition.findMany(), (data) => target.statusTransition.createMany({ data }));
+  // The tags migration adds the starting tags; the source has its own copy of them (maybe renamed).
+  await target.tag.deleteMany();
+  await copy("Tags", await source.tag.findMany(), (data) => target.tag.createMany({ data }));
 
   const tasks = await source.task.findMany({
     include: { clients: { select: { id: true } }, assignees: { select: { id: true } }, testers: { select: { id: true } } },
@@ -51,6 +54,7 @@ async function main() {
   // Explicit issue numbers don't move the counter; continue after the highest one.
   await target.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"Task"', 'number'), COALESCE((SELECT MAX("number") FROM "Task"), 1))`);
 
+  await copy("Task tags", await source.taskTag.findMany(), (data) => target.taskTag.createMany({ data }));
   await copy("Test verdicts", await source.testVerdict.findMany(), (data) => target.testVerdict.createMany({ data }));
   await copy("Attachments", await source.attachment.findMany(), (data) => target.attachment.createMany({ data }), 5);
   await copy("Comments", await source.comment.findMany(), (data) => target.comment.createMany({ data }));

@@ -4,6 +4,7 @@ import { api } from "../api";
 import { PERMISSIONS, type Meta, type NewTask, type Profile, type Task } from "../types";
 import { EvidencePicker, evidenceProblem, filesFromPaste } from "./Evidence";
 import { PoPicker } from "./PoPicker";
+import { TagEditor, tagsProblem } from "./Tags";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -59,6 +60,7 @@ export function NewTaskModal({
     reportedDate: todayIso(),
     expectedDeliveryDate: null,
     comment: "",
+    tags: [],
   });
 
   const [draft, setDraft] = useState<NewTask>(blank);
@@ -87,6 +89,11 @@ export function NewTaskModal({
       setError("Pick at least one PO.");
       return;
     }
+    const tagProblem = tagsProblem(draft.tags, meta.tags);
+    if (tagProblem) {
+      setError(tagProblem);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -111,13 +118,14 @@ export function NewTaskModal({
       setFiles([]);
       setFileProblem(null);
       if (failed.length) {
-        setDraft((current) => ({ ...current, title: "", description: "", comment: "", expectedDeliveryDate: null }));
+        setDraft((current) => ({ ...current, title: "", description: "", comment: "", expectedDeliveryDate: null, tags: [] }));
         setError(`Task #${created.number} was created, but these files couldn't be attached: ${failed.join(", ")}. You can add them from the task's details.`);
         return;
       }
       if (keepOpen) {
-        // Keep date, PO, type and people so a batch for the same PO goes in quickly.
-        setDraft((current) => ({ ...current, title: "", description: "", comment: "", expectedDeliveryDate: null }));
+        // Keep date, PO, type and people so a batch for the same PO goes in quickly. Tags and their
+        // tables/files are about the issue itself, so they start empty.
+        setDraft((current) => ({ ...current, title: "", description: "", comment: "", expectedDeliveryDate: null, tags: [] }));
         setSavedCount((count) => count + 1);
         titleInput.current?.focus();
       } else {
@@ -214,6 +222,11 @@ export function NewTaskModal({
                 <textarea rows={3} value={draft.description} onChange={(event) => change({ description: event.target.value })} placeholder="Steps to reproduce, report name, branch…" />
               </label>
             </div>
+          </section>
+
+          <section className="form-section">
+            <h3 className="form-section-title">Tags <span className="section-hint">optional · helps find related tasks later</span></h3>
+            <TagEditor tags={meta.tags} value={draft.tags} onChange={(tags) => change({ tags })} />
           </section>
 
           <section className="form-section">

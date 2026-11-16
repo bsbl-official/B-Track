@@ -1,21 +1,29 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { api } from "../api";
 import { errorMessage, formatDate, formatDateTime } from "../format";
-import type { Meta, Named, Task, TaskDetail, TaskUpdate } from "../types";
+import type { Meta, Named, TagInput, Task, TaskDetail, TaskUpdate } from "../types";
 import { Avatar } from "./Avatar";
 import { EvidenceGallery } from "./Evidence";
 import { PoPicker } from "./PoPicker";
+import { TagEditor, TagList, tagInputsOf, tagsProblem } from "./Tags";
 import { SendBackDialog, TestingPanel } from "./Testing";
 
 // The fields that are read-only in the sheet and edited here.
-type Draft = { title: string; clientIds: string[]; typeId: string | null; reportedDate: string; expectedDeliveryDate: string | null };
+type Draft = { title: string; clientIds: string[]; typeId: string | null; reportedDate: string; expectedDeliveryDate: string | null; tags: TagInput[] };
 const draftOf = (task: Task): Draft => ({
   title: task.title,
   clientIds: task.clients.map((client) => client.id),
   typeId: task.typeId,
   reportedDate: task.reportedDate,
   expectedDeliveryDate: task.expectedDeliveryDate,
+  tags: tagInputsOf(task.tags),
 });
+const sameTags = (a: TagInput[], b: TagInput[]) =>
+  a.length === b.length &&
+  a.every((tag) => {
+    const other = b.find((item) => item.name.toLowerCase() === tag.name.toLowerCase());
+    return other !== undefined && other.details.join("\n") === tag.details.join("\n");
+  });
 
 function PersonRow({ label, people, empty }: { label: string; people: Array<Named | null>; empty: string }) {
   const named = people.filter((person): person is Named => person !== null);
@@ -100,6 +108,11 @@ export function TaskDrawer({
       change.comment = dateReason.trim();
     }
     if (draft.clientIds.length !== original.clientIds.length || draft.clientIds.some((id) => !original.clientIds.includes(id))) change.clientIds = draft.clientIds;
+    if (!sameTags(draft.tags, original.tags)) {
+      const problem = tagsProblem(draft.tags, [...meta.tags, ...task.tags]);
+      if (problem) return setEditError(problem);
+      change.tags = draft.tags;
+    }
     setBusy(true);
     try {
       if (Object.keys(change).length > 0) {
@@ -218,7 +231,7 @@ export function TaskDrawer({
             <span className="drawer-number">Issue #{task?.number ?? "…"}</span>
             <div className="drawer-header-actions">
               {task && canUpdate && !editing && (
-                <button type="button" className="drawer-tool" onClick={startEditing} title="Edit title, PO, type and dates">
+                <button type="button" className="drawer-tool" onClick={startEditing} title="Edit title, PO, type, tags and dates">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></svg>
                   <span>Edit</span>
                 </button>
@@ -281,6 +294,10 @@ export function TaskDrawer({
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="field span-2">
+                <span>Tags <em>optional</em></span>
+                <TagEditor tags={meta.tags} value={draft.tags} onChange={(tags) => changeDraft({ tags })} current={task.tags} />
               </div>
               <label>
                 <span>Date <b className="req">*</b> <em>assigned on</em></span>
@@ -345,6 +362,18 @@ export function TaskDrawer({
                 </dl>
               </section>
             </div>
+
+            <section className="drawer-section">
+              <h3>
+                Tags {task.tags.length > 0 && <span className="section-count">{task.tags.length}</span>}
+                {canUpdate && (
+                  <button type="button" className="text-button section-action" onClick={startEditing}>
+                    {task.tags.length ? "Edit tags" : "Add tags"}
+                  </button>
+                )}
+              </h3>
+              {task.tags.length > 0 ? <TagList tags={task.tags} /> : <p className="drawer-empty">No tags yet.</p>}
+            </section>
 
             {task.testing.testers.length > 0 && (
               <TestingPanel

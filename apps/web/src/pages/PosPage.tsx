@@ -100,7 +100,7 @@ export function PosPage({ onChanged }: { onChanged: () => void }) {
 }
 
 // The native picker reports every drag step; save once the choice settles.
-function ColorInput({ value, label, onChange }: { value: string; label: string; onChange: (color: string) => void }) {
+export function ColorInput({ value, label, onChange }: { value: string; label: string; onChange: (color: string) => void }) {
   const [draft, setDraft] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => setDraft(value), [value]);

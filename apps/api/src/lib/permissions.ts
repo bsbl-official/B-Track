@@ -11,6 +11,7 @@ export const PERMISSIONS = {
   dashboardViewAll: "dashboard.view_all",
   kpiView: "kpi.view",
   poManage: "po.manage",
+  tagManage: "tag.manage",
   accessManage: "access.manage",
 } as const;
 
@@ -29,6 +30,7 @@ export const PERMISSION_CATALOGUE: Array<{ key: Permission; group: string; label
   { key: PERMISSIONS.dashboardViewAll, group: "Dashboard", label: "See team-wide dashboard", description: "See metrics for every task across all POs. Without this, the dashboard shows only their own numbers: tasks assigned to them, overdue, due soon and completed." },
   { key: PERMISSIONS.kpiView, group: "Reports", label: "See KPI reports", description: "Open the KPI report for every developer: delivery against probable dates, date changes, failed tests, reopened and blocked tasks, and the PO mix. Includes downloading it as a PDF." },
   { key: PERMISSIONS.poManage, group: "Administration", label: "Manage POs", description: "Create, rename and archive POs." },
+  { key: PERMISSIONS.tagManage, group: "Administration", label: "Manage tags", description: "Open the Tags page: rename, recolour and archive tags, and choose what details a tag asks for (tables, form files, screens…). Anyone editing a task can still add a new plain tag by typing it." },
   { key: PERMISSIONS.accessManage, group: "Administration", label: "Manage access", description: "Open this page: change roles, permissions and users." },
 ];
 

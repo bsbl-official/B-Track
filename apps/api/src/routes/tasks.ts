@@ -5,6 +5,7 @@ import { dateOnly, formatDateOnly, gapDays, parseDateOnly, today } from "../lib/
 import { HttpError, asyncHandler } from "../lib/http.js";
 import { PERMISSIONS } from "../lib/permissions.js";
 import { prisma } from "../lib/prisma.js";
+import { resolveTags, saveNewTags, tagInputSchema, tagsText, type ResolvedTag } from "../lib/tags.js";
 import { taskAccess, visibleTasksWhere } from "../lib/taskAccess.js";
 import { IN_PROGRESS_STATUS, TESTING_STATUS, isRealTester, serializeTesting, testingState, verdictOf } from "../lib/testing.js";
 import { can, getActor, requirePermission, type Actor } from "../middleware/auth.js";
@@ -23,6 +24,10 @@ export const taskInclude = {
   // isPlaceholder marks the "User" entry, which never counts in the testing sign-off.
   testers: { select: { id: true, name: true, isPlaceholder: true }, orderBy: { name: "asc" } },
   testVerdicts: { select: { testerId: true, passed: true } },
+  tags: {
+    select: { details: true, tag: { select: { id: true, name: true, color: true, detailLabel: true } } },
+    orderBy: { tag: { name: "asc" } },
+  },
   // The newest comment fills the sheet's Comments column.
   comments: {
     orderBy: { createdAt: "desc" },
@@ -34,10 +39,12 @@ export const taskInclude = {
 
 type TaskRow = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
 
-function serializeTask({ _count, comments, testVerdicts, ...task }: TaskRow, actor: Actor) {
+function serializeTask({ _count, comments, testVerdicts, tags, ...task }: TaskRow, actor: Actor) {
   return {
     ...task,
     testers: task.testers.map(({ id, name }) => ({ id, name })),
+    // Each tag with the tables, files or screens listed for it on this task.
+    tags: tags.map(({ tag, details }) => ({ ...tag, details })),
     reportedDate: formatDateOnly(task.reportedDate),
     expectedDeliveryDate: formatDateOnly(task.expectedDeliveryDate),
     deliveredDate: formatDateOnly(task.deliveredDate),
@@ -194,6 +201,7 @@ const createTaskSchema = z.object({
   reportedDate: dateOnly.optional(),
   expectedDeliveryDate: dateOnly.nullish(),
   comment: z.string().trim().max(5_000).optional(),
+  tags: tagInputSchema.optional(),
 });
 
 tasksRouter.post(
@@ -210,6 +218,7 @@ tasksRouter.post(
     const priority = access.setPriority && input.priorityId ? await findPriority(input.priorityId) : null;
     const assignees = input.assigneeIds?.length ? await findAssignees(actor, access.assign, input.assigneeIds) : [];
     const testers = input.testerIds?.length ? await findTesters(input.testerIds) : [];
+    const tags = input.tags?.length ? await resolveTags(input.tags) : [];
     if (input.comment && !access.comment) throw new HttpError(403, "Your role can't comment");
 
     const initialStatus = await prisma.status.findFirst({ where: { isInitial: true }, orderBy: { sortOrder: "asc" } });
@@ -241,8 +250,10 @@ tasksRouter.post(
     assertDateOrder(reportedDate, expectedDeliveryDate);
 
     const task = await prisma.$transaction(async (transaction) => {
+      const tagLinks = await saveNewTags(transaction, tags);
       const created = await transaction.task.create({
         data: {
+          tags: { create: tagLinks },
           title: input.title,
           description: input.description || null,
           clients: { connect: clients.map((client) => ({ id: client.id })) },
@@ -287,6 +298,7 @@ const updateTaskSchema = z
     deliveredDate: dateOnly.nullable(),
     // The reason for moving the probable date; saved as a comment on the task.
     comment: z.string().trim().max(5_000),
+    tags: tagInputSchema,
   })
   .partial()
   .strict();
@@ -297,7 +309,7 @@ type Change = { field: string; oldValue: string | null; newValue: string | null;
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 const readableDate = (value: Date | null) => (value ? dateFormat.format(value) : "not set");
 
-const EDIT_FIELDS = ["title", "description", "clientIds", "typeId", "reportedDate", "expectedDeliveryDate", "deliveredDate"] as const;
+const EDIT_FIELDS = ["title", "description", "clientIds", "typeId", "reportedDate", "expectedDeliveryDate", "deliveredDate", "tags"] as const;
 
 tasksRouter.patch(
   "/:id",
@@ -337,6 +349,17 @@ tasksRouter.patch(
       if (poNames(clients) !== poNames(task.clients)) {
         data.clients = { set: clients.map((client) => ({ id: client.id })) };
         record("PO", poNames(task.clients), poNames(clients));
+      }
+    }
+    // Tags are replaced as a whole; new names become new tags when the change is saved.
+    let nextTags: ResolvedTag[] | null = null;
+    if (input.tags !== undefined) {
+      const resolved = await resolveTags(input.tags, task.tags.map(({ tag }) => tag.id));
+      const before = tagsText(task.tags.map(({ tag, details }) => ({ name: tag.name, details })));
+      const after = tagsText(resolved);
+      if (before !== after) {
+        nextTags = resolved;
+        record("Tags", before, after);
       }
     }
     let isRoutine = task.type?.isRoutine ?? false;
@@ -481,6 +504,11 @@ tasksRouter.patch(
     const updated = await prisma.$transaction(async (transaction) => {
       if (clearVerdicts) await transaction.testVerdict.deleteMany({ where: { taskId: task.id } });
       else if (removedTesterIds.length > 0) await transaction.testVerdict.deleteMany({ where: { taskId: task.id, testerId: { in: removedTesterIds } } });
+      if (nextTags) {
+        const tagLinks = await saveNewTags(transaction, nextTags);
+        await transaction.taskTag.deleteMany({ where: { taskId: task.id } });
+        await transaction.taskTag.createMany({ data: tagLinks.map((link) => ({ ...link, taskId: task.id })) });
+      }
       const saved = await transaction.task.update({ where: { id: task.id }, data, include: taskInclude });
       await transaction.taskHistory.createMany({
         data: changes.map((change) => ({ ...change, taskId: task.id, actorId: actor.id })),

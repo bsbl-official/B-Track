@@ -10,6 +10,8 @@ import type {
   Dashboard,
   KpiReport,
   ManagedClient,
+  ManagedTag,
+  TagSettings,
   Meta,
   NewTask,
   Notifications,
@@ -98,6 +100,12 @@ export const api = {
   createClient: (name: string) => request<ManagedClient>("/clients", send("POST", { name })),
   updateClient: (id: string, update: { name?: string; color?: string; isActive?: boolean }) =>
     request<ManagedClient>(`/clients/${id}`, send("PATCH", update)),
+
+  listTags: () => request<ManagedTag[]>("/tags"),
+  createTag: (tag: TagSettings & { name: string }) => request<ManagedTag>("/tags", send("POST", tag)),
+  updateTag: (id: string, update: TagSettings) => request<ManagedTag>(`/tags/${id}`, send("PATCH", update)),
+  // Details already used with each tag, for suggestions: { tagId: ["CR_INFO", …] }.
+  tagDetails: () => request<Record<string, string[]>>("/tags/details"),
 
   notifications: () => request<Notifications>("/notifications"),
   markNotificationRead: (id: string) => request<void>(`/notifications/${id}/read`, send("POST")),

@@ -1227,3 +1227,58 @@ a.stat-card:hover .stat-go, a.stat-card:focus-visible .stat-go { opacity: 1; tra
 .testing-actions .text-button { margin-left: auto; }
 /* Status waiting for testers: still readable, clearly not editable. */
 .cell-select.status-waiting:disabled { cursor: help; opacity: 1; }
+
+/* Tags: picking them on a task (with the details some tags ask for), showing them in the drawer, the Tags page */
+.tag-chip { align-items: center; background: color-mix(in srgb, var(--pill) 13%, #fff); border: 1px solid color-mix(in srgb, var(--pill) 28%, #fff); border-radius: 6px; color: color-mix(in srgb, var(--pill) 82%, #111318); display: inline-flex; font-size: 12px; font-weight: 700; gap: 5px; max-width: 100%; padding: 2px 8px; white-space: nowrap; }
+.tag-chip::before { background: var(--pill); border-radius: 50%; content: ""; flex: 0 0 auto; height: 6px; width: 6px; }
+.detail-chip { align-items: center; background: #f1f2f5; border: 1px solid #e1e4e9; border-radius: 5px; color: #343a45; display: inline-flex; font: 600 11.5px ui-monospace, "Cascadia Mono", Consolas, monospace; gap: 4px; padding: 2px 7px; word-break: break-all; }
+
+.tag-editor { display: grid; gap: 10px; min-width: 0; }
+.tag-rows { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.tag-row { background: #fff; border: 1px solid #e1e4e9; border-radius: 10px; display: grid; gap: 8px; padding: 9px 10px; }
+.tag-row-head { align-items: center; display: flex; gap: 8px; min-width: 0; }
+.tag-row-label { color: #5f6673; font-size: 12px; font-weight: 600; }
+.tag-new { background: #fff4e5; border-radius: 999px; color: #a35f00; font-size: 10.5px; font-weight: 700; padding: 1px 7px; }
+.tag-remove { background: none; border: 0; border-radius: 6px; color: #969ca7; cursor: pointer; font-size: 17px; height: 26px; line-height: 1; margin-left: auto; width: 26px; }
+.tag-remove:hover { background: #fdecea; color: #b42318; }
+
+.tag-add { align-items: center; background: #fff; border: 1px solid #d5d8de; border-radius: 9px; display: flex; gap: 8px; padding: 0 12px; transition: border-color .15s, box-shadow .15s; }
+.tag-add:hover { border-color: #aeb3bc; }
+.tag-add:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px #c8161e1f; }
+.tag-add > svg { fill: none; flex: 0 0 auto; height: 16px; stroke: #969ca7; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; width: 16px; }
+.tag-editor .tag-add input, .tag-editor .detail-input input { background: transparent; border: 0; border-radius: 0; box-shadow: none; color: #1f2329; flex: 1; font-size: 14px; min-height: 40px; min-width: 120px; outline: none; padding: 0; width: auto; }
+.tag-editor .tag-add input::placeholder, .tag-editor .detail-input input::placeholder { color: #aeb3bc; }
+
+.tag-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-suggestion { align-items: center; background: #fff; border: 1px solid #d5d8de; border-radius: 999px; color: #343a45; cursor: pointer; display: inline-flex; font-size: 12.5px; font-weight: 600; gap: 6px; padding: 5px 11px; }
+.tag-suggestion:hover { background: color-mix(in srgb, var(--pill, #5f6673) 9%, #fff); border-color: color-mix(in srgb, var(--pill, #5f6673) 55%, #d5d8de); }
+.tag-suggestion em { color: #969ca7; font-size: 11.5px; font-style: normal; font-weight: 500; }
+.tag-suggestion.create { border-style: dashed; color: var(--accent-strong); }
+.tag-suggestion.create:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+.detail-field { display: grid; gap: 5px; }
+.detail-input { align-items: center; background: #fafbfc; border: 1px solid #d5d8de; border-radius: 8px; cursor: text; display: flex; flex-wrap: wrap; gap: 5px; padding: 3px 8px; transition: border-color .15s, box-shadow .15s; }
+.detail-input:focus-within { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px #c8161e1f; }
+.detail-input.invalid { border-color: #e5948c; }
+.tag-editor .detail-input input { font-size: 13px; min-height: 30px; }
+.detail-input .detail-chip button { background: none; border: 0; color: #969ca7; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 2px; }
+.detail-input .detail-chip button:hover { color: #b42318; }
+.tag-suggestions.detail { gap: 5px; }
+.detail-suggestion { background: #fff; border: 1px solid #d5d8de; border-radius: 5px; color: #343a45; cursor: pointer; font: 600 11.5px ui-monospace, "Cascadia Mono", Consolas, monospace; padding: 3px 8px; }
+.detail-suggestion:hover { background: var(--accent-soft); border-color: var(--accent); }
+.detail-help { color: #969ca7 !important; font-size: 11.5px !important; }
+.detail-problem { color: #b42318; font-size: 12px; margin: 0; }
+
+/* Drawer: each tag on its own line with its tables, files or screens */
+.tag-list { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.tag-list li { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.tag-list .tag-chip { margin-top: 1px; }
+.tag-list-details { display: flex; flex: 1; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.drawer-section h3 .section-action { font-size: 12px; font-weight: 600; margin-left: auto; }
+
+/* Tags page */
+.tags-table .cell-input:disabled { background: transparent; color: #aeb3bc; cursor: not-allowed; }
+.tags-table .center-cell { text-align: center; }
+.tags-table .center-cell input { accent-color: var(--accent); cursor: pointer; height: 16px; width: 16px; }
+.tags-table .center-cell input:disabled { cursor: not-allowed; opacity: .4; }
+.tags-table td a { color: var(--accent-strong); font-weight: 600; }

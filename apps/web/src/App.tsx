@@ -13,6 +13,7 @@ import { KpiPage } from "./pages/KpiPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PosPage } from "./pages/PosPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { TagsPage } from "./pages/TagsPage";
 import { navigate, useRoute } from "./router";
 import { PERMISSIONS, type Meta, type Profile } from "./types";
 import { Brand } from "./components/Logo";
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { page: "tasks", label: "Task sheet", icon: "tasks" },
   { page: "kpi", label: "KPI report", icon: "kpi", permission: PERMISSIONS.kpiView },
   { page: "pos", label: "Partner Orgs (POs)", icon: "pos", permission: PERMISSIONS.poManage },
+  { page: "tags", label: "Tags", icon: "tags", permission: PERMISSIONS.tagManage },
   { page: "access", label: "Access management", icon: "access", permission: PERMISSIONS.accessManage },
 ];
 
@@ -210,6 +212,7 @@ export default function App() {
           )}
           {meta && page === "kpi" && <KpiPage meta={meta} params={route.params} />}
           {meta && page === "pos" &&<PosPage onChanged={refreshMeta} />}
+          {meta && page === "tags" && <TagsPage onChanged={refreshMeta} />}
           {meta && page === "access" && <AccessPage currentUserId={profile.id} onChanged={loadSession} />}
           {meta && page === "profile" && <ProfilePage profile={profile} onUpdated={setProfile} onLogout={logout} />}
         </div>

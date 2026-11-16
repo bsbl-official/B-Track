@@ -43,7 +43,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
   - `GOOGLE_CLIENT_ID`, `ALLOWED_EMAIL_DOMAINS` and `ADMIN_EMAILS`
 
   The site URL must also be an authorised JavaScript origin on the Google OAuth client.
-- **Moving data:** `npm run db:copy --workspace @task-tracker/api` copies every table except sessions from `DATABASE_URL` into `TARGET_DATABASE_URL`. That target must already be migrated and empty, or the script refuses. The script was tested end to end on a scratch database.
+- **Moving data:** `npm run db:copy --workspace @task-tracker/api` copies every table except sessions (it first empties the target's migration-seeded tags) from `DATABASE_URL` into `TARGET_DATABASE_URL`. That target must already be migrated and empty, or the script refuses. The script was tested end to end on a scratch database.
 - **Scratch databases on the local server:** Prisma creates them in WIN1252, which can't hold Bangla. Create them with `ENCODING 'UTF8' TEMPLATE template0`.
 
 ## Environment gotchas (Windows)
@@ -95,6 +95,12 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
     - New / In Progress / Testing ↔ Blocked
 
   There is no admin UI for statuses, types or priorities yet; they come from the seed or DB.
+- **Tag** / **TaskTag** (migration `20261116090000_tags`, owner's request 2026-11-16; `lib/tags.ts`, `routes/tags.ts`):
+  - `Tag`: `name` (unique ignoring case), `color`, `isActive` (archived tags stay on their tasks but can't be added), and what details it asks for: `detailLabel` (e.g. "Tables"; null = plain tag), `detailHint` (example), `detailExtensions` (allowed file endings, empty = any), `detailUppercase`.
+  - `TaskTag` (`taskId`, `tagId`, `details String[]`): a task's tags with the tables / files / screens listed for each. A tag with a `detailLabel` needs at least one detail; details are tidied, de-duplicated, upper-cased and checked against the endings by the server.
+  - Seeded by the migration: Database/DB (Tables, capitals), Forms (Form files, fmb/fmx/rdf), Apex, Java, Flutter (Screens). New special tags (e.g. Report) are set up on the Tags page, not in code.
+  - Tasks take `tags: [{name, details}]` on create and PATCH (the whole list, by name). An unknown name becomes a new plain tag, so **anyone who can edit the task can add a tag on the spot** (owner's choice: managed list plus Azure-style typing). History field "Tags" ("Database/DB: CR_INFO; Forms: X.fmb; Urgent").
+  - Tags aren't shown in the sheet (owner); they're in the drawer and its Edit form, the New task form, the Filters panel (Tag), and the search box matches tag names and details (e.g. `CR_INFO`).
 - **TestVerdict** (`taskId`, `testerId`, `passed`, `reason`): a tester's own verdict in the current testing round (see Testing sign-off below).
 - **Attachment** (evidence): `fileName`, `mimeType`, `size`, `data Bytes`, `uploaderId`, deleted with the task.
   - Files are stored **in Postgres (bytea)**, max 10 MB each and 20 per task.
@@ -108,7 +114,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 
 ### Business rules (the server is the source of truth)
 
-- **Permissions:** a person's effective permissions are the role's permissions, plus grants, minus revokes (`lib/permissions.ts`). Code checks **permission keys, never role names**. The keys are `task.create`, `task.view_all`, `task.edit_all`, `task.assign_any`, `task.set_priority`, `task.set_status`, `task.override_testing`, `comment.create`, `dashboard.view_all`, `kpi.view`, `po.manage` and `access.manage`. `kpi.view` ("See KPI reports") was given by migration to roles that have `access.manage` (Admin).
+- **Permissions:** a person's effective permissions are the role's permissions, plus grants, minus revokes (`lib/permissions.ts`). Code checks **permission keys, never role names**. The keys are `task.create`, `task.view_all`, `task.edit_all`, `task.assign_any`, `task.set_priority`, `task.set_status`, `task.override_testing`, `comment.create`, `dashboard.view_all`, `kpi.view`, `po.manage`, `tag.manage` and `access.manage`. `tag.manage` ("Manage tags") was given by migration to roles with `access.manage`. `kpi.view` ("See KPI reports") was given by migration to roles that have `access.manage` (Admin).
 - **Dashboard scope:** `dashboard.view_all` (Admin only by default; grantable per person) shows team-wide metrics. Without it, `GET /api/dashboard` counts only tasks **assigned to** the person, and the page shows four cards (Assigned to me, Overdue, Due today, Completed) with no "Open tasks" card. "Assigned to me" adds two lines (how many are still New, how many started); "Completed" counts the **current calendar month** with a second line for the all-time total (the same set as the sheet's Completed tab). Every card and every "Tasks by status" row links to the sheet showing the same tasks (Completed → the Completed tab; others → `status=<id>`).
 - **Per-task access:** `lib/taskAccess.ts` works out what a person may do with a given task. The API returns it as `task.access` and the UI only hides or disables controls based on it.
   - A person's **own tasks** are the ones where they're **one of the assignees**, plus ones they created that **nobody else is assigned to**. Once a task is assigned to someone else it belongs to its assignees: the creator can only view it (and comment), like any colleague (owner's rule, 2026-10-03). On own tasks people can edit every field, change status (with `task.set_status`), set priority (with `task.set_priority`), **choose the tester**, and **change the assignees** (anyone with `task.assign_any`; otherwise they may only add or remove themselves, and other assignees stay, shown locked in the picker).
@@ -172,6 +178,8 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 | `GET/POST /api/tasks`, `GET/PATCH/DELETE /api/tasks/:id`, `POST /api/tasks/:id/comments` | tasks (PATCH records history) |
 | `POST /api/tasks/:id/testing` | a tester's verdict: `{result:"pass"}` or `{result:"send_back", reason}` |
 | `GET/POST /api/clients`, `PATCH /api/clients/:id` | POs (`po.manage`) |
+| `GET/POST /api/tags`, `PATCH /api/tags/:id` | tag list and settings (`tag.manage`) |
+| `GET /api/tags/details` | details already used per tag, `{tagId: [...]}`, for suggestions (visible tasks only) |
 | `GET /api/notifications`, `POST /:id/read`, `POST /read-all` | notifications |
 | `GET /api/access`, roles CRUD, `POST/PATCH /api/access/users[/:id]`, `POST /users/:id/reset-password` | access management (`access.manage`) |
 
@@ -191,6 +199,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 
     The 2+ people overview page uses the same tiles and cards. "Promised date" = the first probable date. Rejected by the owner, don't bring back: a Gantt timeline with probable-date diamonds, full lists of completed / failed / reopened / blocked tasks, and numbered boxed sections. Charts are in `components/KpiCharts.tsx` (SVG donut, plain CSS bars). "Download PDF" is `window.print()`; the print CSS (`@page` margin 0, `box-decoration-break: clone`) prints only the sheets, and the browser's "Save as PDF" keeps Bangla text intact. To check the PDF, render it with headless Edge's `Page.printToPDF` (`preferCSSPageSize: true`).
   - `PosPage` (needs `po.manage`)
+  - `TagsPage` (needs `tag.manage`): add, rename, recolour, archive, and set what each tag asks for; a tag's task count links to `#/tasks?view=all&tag=<id>`.
   - `AccessPage`: tabs Requests / Users / Roles & permissions (needs `access.manage`)
   - `ProfilePage`
   - `LoginPage` and `ChoosePasswordPage`, both inside `AuthLayout`
@@ -209,6 +218,7 @@ Verify a change with `npm run typecheck` from the root, plus `npx vite build` fo
 - **Other components:**
   - `PoPicker`: searchable multi-select list (a search box at the top, focused on open; Enter ticks the first match) for POs, and with `required={false}` for assignees (Assigned dev) and testers (Tested by) too, with `locked` ids that show ticked but can't change, rendered on `document.body` through a portal so form and table CSS can't leak into it. It commits when closed.
   - `NotificationBell` polls every 15 s; new notifications play a Web Audio chime and, once allowed, show a system notification (`sound.ts`). `NotifyPrompt` asks to allow browser notifications after each sign-in (per browser session) until they're allowed; a Sound on/off switch sits in the bell panel.
+  - `Tags.tsx`: `TagEditor` (type to get matching tags as clickable chips, Enter takes the best match, or "＋ New tag"; each tag that asks for details gets a chip box with suggestions of details used before), `TagList` (drawer) and `tagsProblem` (client-side check for missing details).
   - `Testing.tsx`: the testing sign-off UI (status choices, `SendBackDialog`, the drawer's `TestingPanel`).
   - `TaskDrawer`: details, comments, history, plus Edit (title, PO, type, Date, Probable date; needs `access.edit`) and Delete (needs `access.delete`, with a confirm).
   - `Logo.tsx`: `Logo` and `Brand` (logo plus "B-Track" wordmark).

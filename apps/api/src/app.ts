@@ -12,6 +12,7 @@ import { dashboardRouter } from "./routes/dashboard.js";
 import { kpiRouter } from "./routes/kpi.js";
 import { metaRouter } from "./routes/meta.js";
 import { notificationsRouter } from "./routes/notifications.js";
+import { tagsRouter } from "./routes/tags.js";
 import { tasksRouter } from "./routes/tasks.js";
 
 export const app = express();
@@ -33,6 +34,7 @@ app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/kpi", requireAuth, kpiRouter);
 app.use("/api/tasks", requireAuth, tasksRouter);
 app.use("/api/clients", requireAuth, clientsRouter);
+app.use("/api/tags", requireAuth, tagsRouter);
 app.use("/api/notifications", requireAuth, notificationsRouter);
 app.use("/api/access", requireAuth, accessRouter);
 

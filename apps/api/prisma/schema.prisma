@@ -194,9 +194,45 @@ model Task {
   notifications Notification[]
   attachments   Attachment[]
   testVerdicts  TestVerdict[]
+  tags          TaskTag[]
 
   @@index([reporterId])
   @@index([statusId])
+}
+
+// A label people put on tasks to find related work later. Anyone editing a task can add a new plain tag
+// by typing it; people with "Manage tags" rename, recolour and archive tags, and set what details a tag
+// asks for (e.g. "Database/DB" asks for the tables the issue touches).
+model Tag {
+  id               String    @id @default(cuid())
+  // Unique ignoring case (checked by the API).
+  name             String    @unique
+  color            String    @default("#5f6673")
+  // What the details are called, e.g. "Tables", "Form files", "Screens". Null = a plain tag. A tag with
+  // details needs at least one on every task it's on.
+  detailLabel      String?
+  // An example shown in the empty box, e.g. "CR_INFO".
+  detailHint       String?
+  // Each detail must end in one of these (e.g. fmb, fmx, rdf); empty = any text.
+  detailExtensions String[]  @default([])
+  // Details are saved in capitals (database table names).
+  detailUppercase  Boolean   @default(false)
+  // Archived tags stay on their tasks but can't be added to more.
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  tasks            TaskTag[]
+}
+
+model TaskTag {
+  taskId  String
+  task    Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tagId   String
+  tag     Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  // The tables, file names or screens this task touches (for tags that ask for details).
+  details String[] @default([])
+
+  @@id([taskId, tagId])
+  @@index([tagId])
 }
 
 // A tester's verdict in the current testing round: passed, or sent back with a reason. A task stays in
